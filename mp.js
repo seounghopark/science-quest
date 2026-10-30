@@ -97,7 +97,7 @@
   function connect() {
     if (sock) return true;
     if (!window.io) { msg('Socket.io 클라이언트를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.'); return false; }
-    sock = window.io(SERVER, { transports: ['websocket', 'polling'] });
+    sock = window.io(SERVER, { transports: ['websocket', 'polling'], auth: { token: window.SQ_TOKEN || '' } }); // 로그인 상태면 대전 점수가 랭킹에 반영됨
     sock.on('connect_error', () => msg('서버에 연결할 수 없어요. 서버가 켜져 있는지, 주소가 맞는지 확인해 주세요.'));
     sock.on('connect', () => msg(''));
     sock.on('disconnect', () => { if (room) { room = null; stopTimer(); goMenu(); msg('서버와 연결이 끊어졌어요.'); mpShow('mpLobby'); } });
