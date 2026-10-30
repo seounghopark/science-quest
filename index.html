@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>html{color-scheme:dark}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>사이언스 퀘스트 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;600;800&display=swap">
+<style>
+/* Layout: full-screen 3D lab scene; glass panel docks right on wide screens, bottom on tall ones */
+:root{
+  --bg:#060a17; --panel:rgba(11,17,36,.8); --line:rgba(160,180,255,.15);
+  --fg:#eef1ff; --muted:#9aa3c7; --c:#ffb547; --ok:#4fe0b0; --bad:#ff5d6c;
+  --display:'Black Han Sans','Noto Sans KR',system-ui,sans-serif;
+  --body:'Noto Sans KR',system-ui,-apple-system,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);overflow:hidden;-webkit-tap-highlight-color:transparent}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+#flash{position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle,transparent 40%,rgba(255,60,80,.45));opacity:0;transition:opacity .5s}
+#flash.on{opacity:1;transition:none}
+#ui{position:fixed;inset:0;display:flex;flex-direction:column;gap:10px;pointer-events:none;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:calc(env(safe-area-inset-top,0px) + 12px);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
+#hud{pointer-events:auto;display:flex;flex-direction:column;gap:8px}
+.hud-row{display:flex;align-items:center;gap:18px}
+.hud-row .stat:first-of-type{margin-left:auto}
+.stat{display:flex;flex-direction:column;align-items:flex-end;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+.lab{font-size:11px;letter-spacing:.12em;color:var(--muted)}
+.stat b{font-family:var(--display);font-size:22px;font-weight:400;font-variant-numeric:tabular-nums}
+#combo.hot{color:var(--c)}
+.bar{height:6px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--c);transform-origin:left;box-shadow:0 0 12px var(--c)}
+.stage{flex:1;min-height:0;display:flex;align-items:flex-end;justify-content:center;pointer-events:none}
+.panel{pointer-events:auto;width:100%;max-width:560px;max-height:62%;overflow:auto;background:var(--panel);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:20px;
+  padding:18px;display:flex;flex-direction:column;gap:14px;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+@media (min-aspect-ratio:6/5){.stage{justify-content:flex-end;align-items:center}.panel{width:min(50%,540px);max-height:100%}}
+.panel.in{animation:rise .45s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{transform:translateY(14px);opacity:.3}}
+.eyebrow{margin:0;font-size:12px;letter-spacing:.2em;color:var(--c);font-weight:800}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(38px,7vw,60px);line-height:.98;margin:0}
+h1 span{color:var(--c);transition:color .4s}
+.sub{margin:0;color:var(--muted);line-height:1.6;font-size:14px;max-width:46ch}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.tile{position:relative;aspect-ratio:1;max-width:100%;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.035);
+  color:var(--fg);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-family:var(--body);transition:transform .2s,border-color .2s,background .2s}
+.tile:hover,.tile:focus-visible{transform:translateY(-3px);border-color:var(--tc);background:rgba(255,255,255,.07)}
+.tile .no{position:absolute;top:5px;left:7px;font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tile .sy{font-family:var(--display);font-size:clamp(16px,3.4vw,24px);color:var(--tc);line-height:1}
+.tile .nm{font-size:10px;color:var(--muted);text-align:center;line-height:1.2;padding:0 2px}
+.best{margin:0;font-size:13px;color:var(--muted)}
+.best b{color:var(--fg);font-variant-numeric:tabular-nums}
+.qhead{display:flex;align-items:center;justify-content:space-between}
+.chip{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:800;letter-spacing:.06em;padding:5px 12px 5px 10px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid var(--line)}
+.chip::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c)}
+.timer{font-family:var(--display);font-size:24px;font-variant-numeric:tabular-nums}
+.timer.low{color:var(--bad)}
+h2{margin:0;font-size:clamp(18px,1.4vw + 12px,24px);line-height:1.45;font-weight:800;text-wrap:balance}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.opt{display:flex;gap:10px;align-items:center;text-align:left;padding:12px;min-height:56px;border-radius:12px;border:1px solid var(--line);
+  background:rgba(255,255,255,.04);color:var(--fg);font:600 15px/1.35 var(--body);cursor:pointer;transition:background .2s,border-color .2s,opacity .3s,transform .15s}
+.opt:hover:not(:disabled){background:rgba(255,255,255,.09);border-color:var(--c)}
+.opt:active:not(:disabled){transform:scale(.97)}
+.opt .k{flex:none;width:24px;height:24px;border-radius:6px;display:grid;place-items:center;font-size:12px;background:rgba(255,255,255,.08);color:var(--muted)}
+.opt span:last-child{min-width:0}
+.opt.ok{border-color:var(--ok);background:rgba(79,224,176,.18)} .opt.ok .k{background:var(--ok);color:#04261b}
+.opt.bad{border-color:var(--bad);background:rgba(255,93,108,.18);animation:wob .35s} .opt.bad .k{background:var(--bad);color:#2a0308}
+.opt.dim{opacity:.35}
+@keyframes wob{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.exp{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px;border-radius:12px;background:rgba(255,255,255,.04);border-left:3px solid var(--c)}
+.exp p{margin:0;flex:1 1 220px;min-width:0;font-size:14px;line-height:1.6;color:#d6dbf5}
+.exp b{color:var(--fg)}
+button{font-family:var(--body)}
+.primary,.ghost{border-radius:12px;padding:11px 18px;font-weight:800;font-size:14px;cursor:pointer;border:1px solid transparent}
+.primary{background:var(--c);color:#14100a;transition:filter .2s}
+.primary:hover{filter:brightness(1.1)}
+.ghost{background:rgba(255,255,255,.06);color:var(--fg);border-color:var(--line)}
+#quit{padding:7px 12px;font-size:12px}
+button:focus-visible{outline:2px solid var(--c);outline-offset:2px}
+.rank{font-family:var(--display);font-weight:400;font-size:clamp(28px,5vw,40px);color:var(--c)}
+.big{font-family:var(--display);font-size:clamp(48px,9vw,72px);line-height:1;font-variant-numeric:tabular-nums}
+.big small{font-size:.35em;color:var(--muted);margin-left:6px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stats div{display:flex;flex-direction:column;gap:2px;padding:10px;border-radius:10px;background:rgba(255,255,255,.04)}
+.stats b{font-size:20px;font-variant-numeric:tabular-nums}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+#pop{white-space:pre-line;position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);font-family:var(--display);font-size:clamp(28px,6vw,48px);pointer-events:none;opacity:0;text-shadow:0 4px 24px rgba(0,0,0,.6);text-align:center;width:90vw;line-height:1.15}
+#pop.go{animation:pop 1s ease-out}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,-30%) scale(.7)}20%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}100%{opacity:0;transform:translate(-50%,-110%) scale(1)}}
+.boss{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;font-weight:800;letter-spacing:.06em;text-shadow:0 2px 10px rgba(0,0,0,.7)}
+.boss b{font-variant-numeric:tabular-nums;color:var(--muted);font-weight:600}
+.hpbar{height:10px;border:1px solid rgba(255,93,108,.35)}
+.hpbar i{background:linear-gradient(90deg,#ff3050,#ff8a4c,#ffd166);box-shadow:0 0 14px #ff5d6c;transition:transform .45s cubic-bezier(.2,.8,.2,1)}
+.hpbar.prog{border-color:var(--line)}
+.hpbar.prog i{background:var(--c);box-shadow:0 0 12px var(--c)}
+#warn{position:fixed;inset:0;display:grid;place-content:center;justify-items:center;gap:8px;pointer-events:none;text-align:center;background:repeating-linear-gradient(-45deg,transparent 0 30px,rgba(255,40,60,.1) 30px 60px)}
+#warn b{font-family:var(--display);font-weight:400;font-size:clamp(48px,11vw,100px);color:#ff3050;letter-spacing:.08em;text-shadow:0 0 34px #ff3050;animation:blink .3s steps(2) infinite}
+#warn span{font-weight:800;letter-spacing:.3em;font-size:14px}
+#warn em{font-style:normal;font-family:var(--display);font-size:clamp(24px,4.5vw,36px);text-shadow:0 4px 20px rgba(0,0,0,.7)}
+@keyframes blink{50%{opacity:.3}}
+.qhead{flex-wrap:wrap;gap:8px}
+.prof{display:flex;flex-direction:column;gap:6px}
+.lvrow{display:flex;justify-content:space-between;font-size:13px}
+.lvrow span{color:var(--muted);font-variant-numeric:tabular-nums}
+.ghost em{font-style:normal;color:var(--c);margin-left:4px;font-variant-numeric:tabular-nums}
+.ghost:disabled{opacity:.4;cursor:default}
+.lvup{margin:0;font-weight:800;color:var(--c)}
+.lvup:empty{display:none}
+.dex{display:flex;flex-direction:column;gap:16px}
+.dex>div{display:flex;flex-direction:column;gap:8px}
+.dex h3{margin:0;font-size:13px;letter-spacing:.04em;display:flex;justify-content:space-between;color:var(--tc)}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.card{padding:10px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid var(--line);font-size:12px;line-height:1.5;color:#c9cfe8;min-width:0}
+.card b{display:block;color:var(--tc);font-size:13px;margin:3px 0}
+.card.boss{border-color:#ffd166;background:rgba(255,209,102,.07)}
+.card.lock{display:grid;place-items:center;min-height:64px;font-family:var(--display);font-size:20px;color:var(--muted);opacity:.55}
+.items{display:flex;gap:6px;margin-left:auto}
+.item{padding:6px 10px;border-radius:99px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--fg);font:800 12px var(--body);cursor:pointer}
+.item em{font-style:normal;color:var(--c);margin-left:2px}
+.item:disabled{opacity:.3;cursor:default}
+.lives{color:var(--bad);letter-spacing:2px}
+.lives.hit{animation:wob .4s}
+.opt.gone{visibility:hidden}
+#comboLab{transition:color .3s}
+body.fever #comboLab{color:var(--c);font-weight:800}
+body.fever .panel{border-color:var(--c);animation:fv .9s ease-in-out infinite alternate}
+@keyframes fv{from{box-shadow:0 0 0 1px var(--c),0 0 30px -10px var(--c),0 24px 70px rgba(0,0,0,.5)}to{box-shadow:0 0 0 1px var(--c),0 0 60px 0 var(--c),0 24px 70px rgba(0,0,0,.5)}}
+.wrong{display:flex;flex-direction:column;gap:6px}
+.wrong:empty{display:none}
+.wrong h3{margin:0;font-size:13px;color:var(--muted);letter-spacing:.08em}
+.wrong div{padding:10px 12px;border-radius:10px;background:rgba(255,93,108,.08);border-left:3px solid var(--bad);font-size:13px;line-height:1.55;color:#d6dbf5}
+.wrong b{color:var(--ok)}
+@media (max-height:460px){.panel{padding:12px;gap:10px}.opt{min-height:44px;padding:8px 10px;font-size:14px}h1{font-size:34px}.sub{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+</head>
+<body>
+<canvas id="c" aria-hidden="true"></canvas>
+<div id="flash"></div>
+<div id="pop"></div>
+<div id="warn" hidden><b>WARNING</b><span>BOSS 등장</span><em id="warnName"></em></div>
+<div id="ui">
+  <header id="hud" hidden>
+    <div class="hud-row">
+      <button id="quit" class="ghost">그만하기</button>
+      <div class="stat"><span class="lab">목숨</span><b id="lives" class="lives">♥♥♥</b></div>
+      <div class="stat"><span class="lab">문제</span><b id="qn">1/10</b></div>
+      <div class="stat"><span class="lab" id="comboLab">콤보</span><b id="combo">0</b></div>
+      <div class="stat"><span class="lab">점수</span><b id="score">0</b></div>
+    </div>
+    <div class="boss"><span id="bossName">BOSS</span><b id="bossHp">1500 / 1500</b></div>
+    <div class="bar hpbar prog" id="hpbar"><i id="hp"></i></div>
+    <div class="bar"><i id="tbar"></i></div>
+  </header>
+  <div class="stage">
+    <section class="panel" id="menu">
+      <p class="eyebrow">중3 비상 과학 · 시험 범위</p>
+      <h1>사이언스<br><span>퀘스트</span></h1>
+      <p class="sub">문제를 맞히면 레이저로 몬스터 처치! 5마리를 잡으면 보스가 등장하고, 어려운 보스 문제 3개를 맞혀야 쓰러뜨릴 수 있어요. 틀리면 반격당해 목숨이 깎여요.</p>
+      <div class="tiles">
+        <button class="tile" data-mode="bio" style="--tc:#ffb547"><span class="no">Ⅳ-2</span><span class="sy">신경</span><span class="nm">신경계와 호르몬</span></button>
+        <button class="tile" data-mode="gen" style="--tc:#4fe0b0"><span class="no">Ⅴ-2</span><span class="sy">유전</span><span class="nm">멘델과 사람의 유전</span></button>
+        <button class="tile" data-mode="star" style="--tc:#6fa8ff"><span class="no">Ⅶ</span><span class="sy">별</span><span class="nm">별과 우주</span></button>
+        <button class="tile" data-mode="mix" style="--tc:#eef1ff"><span class="no">ALL</span><span class="sy">전체</span><span class="nm">시험 범위 섞기</span></button>
+      </div>
+      <div class="prof"><div class="lvrow"><b id="lvT">Lv.1 과학 새싹</b><span id="lvX">0 / 500 XP</span></div><div class="bar"><i id="lvBar"></i></div></div>
+      <div class="row"><button class="ghost" id="dexBtn">지식 도감 <em id="dexN">0/64</em></button><button class="ghost" id="revBtn">오답 복습 <em id="revN">0</em></button></div>
+      <p class="best">최고 점수 <b id="best">0</b> · 몬스터 5마리 → 보스전 · 목숨 3개</p>
+    </section>
+
+    <section class="panel" id="game" hidden>
+      <div class="qhead"><span class="chip" id="cat">물리</span><span class="items"><button class="item" id="i50">50:50 <em id="n50">1</em></button><button class="item" id="itime">+5초 <em id="ntime">1</em></button></span><span class="timer" id="tnum">15.0</span></div>
+      <h2 id="q"></h2>
+      <div class="opts" id="opts"></div>
+      <div class="exp" id="exp" hidden><p id="expT"></p><button id="next" class="primary">다음 문제</button></div>
+    </section>
+
+    <section class="panel" id="result" hidden>
+      <p class="eyebrow">실험 결과</p>
+      <div class="rank" id="rank"></div>
+      <p class="lvup" id="rXp"></p>
+      <div class="big"><span id="final">0</span><small>점</small></div>
+      <div class="stats">
+        <div><span class="lab">정답</span><b id="rRight">0/10</b></div>
+        <div><span class="lab">최대 콤보</span><b id="rMax">0</b></div>
+        <div><span class="lab">최고 점수</span><b id="rBest">0</b></div>
+      </div>
+      <p class="sub" id="rMsg"></p>
+      <div class="wrong" id="wrongBox"></div>
+      <div class="row"><button class="primary" id="again">다시 도전</button><button class="ghost" id="home">다른 과목</button></div>
+    </section>
+    <section class="panel" id="dex" hidden>
+      <div class="qhead"><h2>지식 도감</h2><button class="ghost" id="dexBack">닫기</button></div>
+      <p class="sub" id="dexSub"></p>
+      <div class="dex" id="dexList"></div>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const Q={
+bio:{name:'Ⅳ-2. 신경계와 호르몬',css:'#ffb547',color:0xffb547,obj:'atom',list:[
+['신경계는 중추 신경계와 무엇으로 구분될까?',['말초 신경계','감각 신경계','내분비계','연합 신경계'],'신경계 = 중추 신경계(뇌, 척수) + 말초 신경계(감각 신경, 운동 신경).'],
+['중추 신경계를 이루는 것은?',['뇌와 척수','감각 신경과 운동 신경','뇌와 척추','척수와 운동 신경'],'중추 신경계는 뇌와 척수로, 자극을 느끼고 판단해 신호를 보내.'],
+['말초 신경계를 이루는 것은?',['감각 신경과 운동 신경','뇌와 척수','대뇌와 소뇌','연합 뉴런'],'말초 신경계는 온몸에 퍼져서 중추 신경계와 온몸을 연결해.'],
+['감각 기관에서 받아들인 자극을 중추 신경계로 전달하는 신경은?',['감각 신경','운동 신경','연합 신경','척추'],'운동 신경은 반대로 중추 신경계의 신호를 근육 같은 반응 기관으로 전달해.'],
+['등뼈 속에 들어 있는 신경은?',['척수','척추','연수','소뇌'],'헷갈리기 쉬운 개념! 척추는 등뼈, 척수는 등뼈 속 신경이야.'],
+['감각과 운동 조절, 기억·추리·감정 같은 정신 활동을 담당하는 뇌는?',['대뇌','소뇌','간뇌','연수'],'대뇌는 자극을 느끼고 판단해 적절한 신호를 보내.'],
+['눈의 움직임, 동공과 홍채의 변화를 조절하는 뇌는?',['중간뇌','간뇌','소뇌','대뇌'],'중간뇌 = 눈! 밝은 곳에서 동공이 작아지는 것도 중간뇌가 조절해.'],
+['체온을 비롯한 몸속의 상태를 일정하게 유지하는 뇌는?',['간뇌','중간뇌','연수','소뇌'],'간뇌는 항상성 유지의 중심이야.'],
+['근육 운동을 조절하여 몸의 균형을 유지하는 뇌는?',['소뇌','대뇌','연수','중간뇌'],'자전거를 타며 균형 잡는 것도 소뇌 덕분이야.'],
+['심장 박동과 호흡 운동 등 생명 유지 활동을 조절하는 뇌는?',['연수','소뇌','중간뇌','대뇌'],'연수 = 심장 박동, 호흡. 생명과 직결돼.'],
+['뇌와 말초 신경 사이에서 신호를 전달하는 통로 역할을 하는 것은?',['척수','연수','간뇌','소뇌'],'척수는 의지와 관계없는 반응(무조건 반사)의 중추이기도 해.'],
+['신경계를 이루는 신경 세포를 무엇이라고 할까?',['뉴런','호르몬','내분비샘','시냅스'],'뉴런 = 신경 세포체 + 가지 돌기 + 축삭 돌기.'],
+['뉴런에서 핵과 세포질이 있어 여러 가지 생명 활동이 일어나는 부분은?',['신경 세포체','가지 돌기','축삭 돌기','척수'],'신경 세포체에 핵이 있어.'],
+['다른 뉴런이나 감각 기관에서 전달된 자극을 받아들이는 부분은?',['가지 돌기','축삭 돌기','신경 세포체','운동 신경'],'가지 돌기는 받는 쪽, 축삭 돌기는 보내는 쪽!'],
+['하나의 뉴런에서 자극이 전달되는 순서는?',['가지 돌기 → 신경 세포체 → 축삭 돌기','축삭 돌기 → 신경 세포체 → 가지 돌기','신경 세포체 → 가지 돌기 → 축삭 돌기','가지 돌기 → 축삭 돌기 → 신경 세포체'],'받고(가지 돌기) → 처리하고(세포체) → 보낸다(축삭 돌기).'],
+['중추 신경계를 이루며, 자극을 느끼고 판단하여 운동 뉴런에 신호를 보내는 뉴런은?',['연합 뉴런','감각 뉴런','운동 뉴런','말초 뉴런'],'감각 뉴런은 감각 신경을, 운동 뉴런은 운동 신경을 이뤄.'],
+['감각 신경을 이루고, 감각 기관의 자극을 연합 뉴런으로 전달하는 뉴런은?',['감각 뉴런','운동 뉴런','연합 뉴런','중추 뉴런'],'예: 휴대 전화 소리 → 귀 → 청각 신경의 감각 뉴런 → 연합 뉴런.'],
+['뉴런을 통한 자극 전달 경로로 옳은 것은?',['감각 기관 → 감각 뉴런 → 연합 뉴런 → 운동 뉴런 → 반응 기관','감각 기관 → 연합 뉴런 → 감각 뉴런 → 운동 뉴런 → 반응 기관','감각 기관 → 운동 뉴런 → 연합 뉴런 → 감각 뉴런 → 반응 기관','반응 기관 → 운동 뉴런 → 연합 뉴런 → 감각 뉴런 → 감각 기관'],'감각 → 연합 → 운동 순서를 꼭 기억해!'],
+['대뇌의 판단 과정을 거치지 않아 자신의 의지와 관계없이 일어나는 반응은?',['무조건 반사','의식적 반응','항상성','호르몬 작용'],'무조건 반사는 매우 빨라서 위험한 상황에서 몸을 보호해.'],
+['다음 중 의식적 반응은?',['날아오는 공을 보고 야구 방망이를 휘두른다','뜨거운 물체에 손이 닿아 움츠린다','공이 갑자기 날아와 눈을 감는다','무릎뼈 아래를 치면 다리가 들린다'],'나머지는 모두 대뇌를 거치지 않는 무조건 반사야.'],
+['고무망치로 무릎뼈 아래를 쳤을 때 다리가 들리는 반응의 중추는?',['척수','대뇌','소뇌','간뇌'],'자극이 척수로 전달되면 척수에서 바로 운동 신경으로 신호를 보내.'],
+['무조건 반사가 의식적 반응보다 빠르게 일어나는 까닭은?',['반응 경로가 짧고 단순해서','대뇌가 판단해서','호르몬이 작용해서','운동 신경을 거치지 않아서'],'대뇌를 거치지 않으니 경로가 짧아.'],
+['척수 외에 무조건 반사의 중추로 작용하기도 하는 곳은?',['연수나 중간뇌','대뇌나 소뇌','갑상샘','이자'],'눈 깜빡임 같은 반사는 척수가 아닌 연수·중간뇌가 중추가 되기도 해.'],
+['몸 안팎의 환경이 변해도 몸의 상태를 일정하게 유지하는 성질은?',['항상성','무조건 반사','의식적 반응','세포 호흡'],'항상성은 신경과 호르몬의 작용으로 유지돼.'],
+['호르몬을 만들어 분비하는 조직이나 기관은?',['내분비샘','뉴런','척수','소뇌'],'갑상샘, 이자 등이 내분비샘이야.'],
+['호르몬이 특정 세포까지 이동하는 방법은?',['혈액으로 분비되어 혈관을 통해 온몸으로 이동','뉴런을 통해 전기 신호로 이동','척수를 따라 이동','공기를 통해 이동'],'혈관을 타고 온몸으로 퍼진 뒤 특정 세포에만 작용해.'],
+['신경과 비교한 호르몬의 특징으로 옳은 것은?',['신호가 천천히 전달되고 효과가 오래간다','신호가 매우 빠르게 전달된다','작용 범위가 좁다','효과가 바로 사라진다'],'호르몬: 느리지만 지속적이고 작용 범위가 넓어.'],
+['더울 때 체온을 낮추기 위해 일어나는 변화는?',['피부 혈관이 확장되고 땀 분비량이 늘어난다','피부 혈관이 수축한다','근육이 떨린다','티록신 분비량이 늘어난다'],'열이 몸 밖으로 많이 나가서 체온이 낮아져.'],
+['땀을 흘리면 체온이 낮아지는 까닭은?',['땀이 기화하면서 피부의 열에너지를 흡수해서','땀이 열을 만들어서','혈관이 수축해서','세포 호흡이 촉진돼서'],'액체가 기화할 때 주위의 열에너지를 흡수해.'],
+['추울 때 피부에 있는 혈관은 어떻게 될까?',['수축한다','확장한다','변화 없다','땀을 분비한다'],'혈관이 수축하면 피부를 통해 몸 밖으로 나가는 열이 줄어.'],
+['목 앞쪽에 있는 갑상샘에서 분비되어 세포 호흡을 촉진하는 호르몬은?',['티록신','인슐린','글루카곤','성장 호르몬'],'체온이 낮아지면 티록신 분비가 늘어 몸에서 열이 많이 발생해.'],
+['혈당량을 낮추는 호르몬은?',['인슐린','글루카곤','티록신','성호르몬'],'인슐린은 낮추고, 글루카곤은 높여.'],
+['혈당량을 높이는 호르몬은?',['글루카곤','인슐린','티록신','성장 호르몬'],'혈당량이 정상보다 낮아지면 이자에서 글루카곤이 분비돼.'],
+['인슐린과 글루카곤을 분비하는 내분비샘은?',['이자','갑상샘','간','소뇌'],'둘 다 이자! 간은 호르몬이 작용하는 기관이야.'],
+['이자에서 인슐린이 제대로 분비되지 않으면 걸리는 질병은?',['당뇨병','감기','빈혈','근시'],'호르몬이 너무 적거나 많이 분비되면 질병에 걸릴 수 있어.'],
+['동물의 간이나 근육 등에 저장된 탄수화물은?',['글리코젠','포도당','인슐린','티록신'],'간은 포도당을 글리코젠으로 바꿔 저장했다가 필요할 때 다시 포도당으로 분해해.'],
+['건강한 사람의 혈액 100 mL 속 포도당의 양(혈당량)은 보통 얼마일까?',['약 70~90 mg','약 7~9 mg','약 700~900 mg','약 1~2 g'],'혈당량이 이 범위에서 일정하게 유지되는 것도 항상성이야.'],
+['뉴런 내부에서 자극은 어떤 형태로 전달될까?',['전기 신호','호르몬','소리','빛'],'이를 이용해 뇌파로 로봇을 움직이는 기술이 개발되고 있어.']]}
+};
+
+const KEYS=['bio','gen','star'];
+Q.gen={name:'Ⅴ-2. 유전',css:'#4fe0b0',color:0x4fe0b0,obj:'dna',list:[
+['생물이 지니고 있는 여러 가지 특성을 무엇이라고 할까?',['형질','유전','대립유전자','표현형'],'부모의 형질이 자녀에게 전달되는 현상은 유전이라고 해.'],
+['부모의 형질이 자손에게 전달되는 현상은?',['유전','형질','분리','교배'],'멘델은 완두 교배 실험으로 유전의 기본 원리를 설명했어.'],
+['멘델이 완두를 유전 실험 재료로 사용한 까닭이 아닌 것은?',['한 세대가 길다','기르기 쉽다','자손의 수가 많다','대립 형질이 뚜렷하다'],'완두는 한 세대가 짧아서 여러 세대를 빨리 관찰할 수 있어.'],
+['씨의 색깔이 노란색이거나 초록색인 것처럼 한 가지 형질에서 구분되는 변이는?',['대립 형질','순종','우성','유전자형'],'대립 형질이 뚜렷하면 실험 결과를 분석하기 쉬워.'],
+['한 가지 형질을 나타내는 유전자의 구성이 같은 개체는?',['순종','잡종','열성','우성'],'유전자의 구성이 다른 개체는 잡종이야.'],
+['19세기 사람들은 유전 원리를 어떻게 생각했을까?',['부모의 형질이 물감처럼 섞여서 전달된다','유전자가 분리되어 전달된다','열성 형질만 전달된다','형질은 유전되지 않는다'],'멘델은 형질이 물감처럼 뒤섞이지 않음을 증명했어.'],
+['대립 형질을 지닌 순종끼리 교배했을 때 자손 1대에서 나타나는 형질은?',['우성','열성','잡종','순종'],'자손 1대에서 나타나지 않는 형질은 열성이야.'],
+['자손 1대에서 나타나지 않는 형질을 무엇이라고 할까?',['열성','우성','대립유전자','표현형'],'열성 형질은 사라진 게 아니라 자손 2대에서 다시 나타나.'],
+['씨의 색깔이 노란색인 순종 완두와 초록색인 순종 완두를 교배하면 자손 1대는?',['모두 노란색','모두 초록색','노란색:초록색=1:1','노란색:초록색=3:1'],'노란색이 우성, 초록색이 열성이라 자손 1대(Yy)는 모두 노란색이야.'],
+['자손 1대에서 우성 형질만 나타나는 유전 원리는?',['우열의 원리','분리의 법칙','독립의 법칙','중간 유전'],'우열의 원리: 순종 대립 형질끼리 교배하면 자손 1대에 우성만 나타나.'],
+['우성은 우수한 형질이라는 뜻일까?',['아니다, 자손 1대에서 나타나는 대립 형질일 뿐이다','그렇다, 더 우수한 형질이다','그렇다, 더 흔한 형질이다','아니다, 더 약한 형질이다'],'오개념 바로잡기! 우성과 열성은 우수한 것과 관계가 없어.'],
+['노란색 자손 1대(Yy)를 자가 수분한 자손 2대에서 노란색:초록색의 비는?',['3:1','1:1','1:2:1','9:3:3:1'],'자손 2대의 표현형 비는 노란색:초록색 = 3:1.'],
+['Yy를 자가 수분한 자손 2대의 유전자형 비 YY:Yy:yy는?',['1:2:1','3:1','1:1:1','2:1:1'],'표현형 비는 3:1, 유전자형 비는 1:2:1이야.'],
+['쌍을 이루던 대립유전자가 감수 분열 때 분리되어 서로 다른 생식세포로 들어가는 원리는?',['분리의 법칙','독립의 법칙','우열의 원리','유전의 원리'],'Yy는 분리되어 Y를 가진 생식세포와 y를 가진 생식세포를 만들어.'],
+['대립 형질을 결정하는 유전자로 상동 염색체의 같은 위치에 있는 것은?',['대립유전자','염색 분체','형질','표현형'],'우성 유전자는 대문자, 열성 유전자는 소문자로 표시해.'],
+['대립유전자를 표시하는 방법으로 옳은 것은?',['우성은 대문자, 열성은 소문자','우성은 소문자, 열성은 대문자','둘 다 대문자','둘 다 숫자'],'예: 노란색 Y, 초록색 y.'],
+['유전자 구성을 알파벳 기호로 나타낸 것은?',['유전자형','표현형','형질','대립 형질'],'표현형은 유전자 구성에 따라 겉으로 드러나는 형질이야.'],
+['멘델이 생각한 유전 인자는 오늘날 무엇일까?',['유전자','염색체','세포','단백질'],'멘델의 가설: 한 형질을 결정하는 한 쌍의 유전 인자가 부모에서 자손으로 전달된다.'],
+['유전자형이 Yy인 완두에서 만들어지는 생식세포는?',['Y와 y 두 종류','Y 한 종류','y 한 종류','Yy 한 종류'],'대립유전자 Y와 y가 분리되어 서로 다른 생식세포로 들어가.'],
+['둥글고 노란색(RRYY) 순종과 주름지고 초록색(rryy) 순종을 교배한 자손 1대는?',['모두 둥글고 노란색','모두 주름지고 초록색','둥글고 초록색','4가지가 섞여 나온다'],'자손 1대의 유전자형은 RrYy, 표현형은 둥글고 노란색.'],
+['RrYy를 자가 수분한 자손 2대의 표현형 비(둥노:둥초:주노:주초)는?',['9:3:3:1','3:1','1:1:1:1','1:2:1'],'모양만 보면 3:1, 색깔만 봐도 3:1이야.'],
+['2쌍 이상의 대립유전자가 서로 영향을 미치지 않고 각각 분리의 법칙에 따라 유전되는 원리는?',['독립의 법칙','분리의 법칙','우열의 원리','대립의 법칙'],'모양과 색깔 유전자가 서로 영향을 주지 않고 따로 유전돼.'],
+['RrYy 완두에서 만들어지는 생식세포의 종류는?',['RY, Ry, rY, ry 4종류가 같은 비율','RY, ry 2종류','RrYy 1종류','Rr, Yy 2종류'],'독립의 법칙 덕분에 4종류가 1:1:1:1로 만들어져.'],
+['9:3:3:1이 나온 자손 2대에서 둥근 모양:주름진 모양의 비는?',['12:4 = 3:1','9:7','1:1','15:1'],'둥근(9+3) : 주름진(3+1) = 12:4 = 3:1.'],
+['멘델의 유전 실험이 지닌 의의는?',['형질이 물감처럼 섞여 유전되지 않음을 증명했다','DNA 구조를 밝혔다','염색체를 발견했다','사람의 유전병을 치료했다'],'유전자를 바탕으로 유전 원리를 설명한 것에 의의가 있어.'],
+['사람의 유전 연구가 어려운 까닭이 아닌 것은?',['자손의 수가 많다','한 세대가 길다','교배 실험이 불가능하다','환경의 영향을 많이 받는다'],'사람은 자손의 수가 적고, 대립 형질이 복잡해.'],
+['대립 형질이 뚜렷하게 구분되지 않는 사람의 형질은?',['키','눈꺼풀 모양','귓불 모양','혀 말기'],'키와 피부색은 대립 형질이 뚜렷하게 구분되지 않아.'],
+['다음 중 대립 형질이 뚜렷한 사람의 유전 형질이 아닌 것은?',['피부색','보조개 유무','귓불 모양(분리형, 부착형)','엄지 모양(굽는, 굽지 않는)'],'피부색은 키처럼 대립 형질이 뚜렷하지 않아.'],
+['사람의 유전 현상을 연구하는 방법이 아닌 것은?',['완두 교배 실험','가계도 조사','쌍둥이 연구','염색체와 DNA 분석'],'사람은 교배 실험이 불가능해.'],
+['가계도에서 □와 ○가 뜻하는 것은?',['□는 남자, ○는 여자','□는 여자, ○는 남자','□는 부모, ○는 자녀','□는 우성, ○는 열성'],'가로 직선은 부부, 그 아래 세로선은 자녀를 뜻해.'],
+['집안의 가족 관계를 그림으로 나타내 특정 형질의 유전을 알아보는 방법은?',['가계도 조사','쌍둥이 연구','DNA 분석','교배 실험'],'가계도로 우열 관계, 유전자형, 자손의 형질까지 예측할 수 있어.'],
+['하나의 수정란이 난할 과정에서 분리되어 각각 발생한 쌍둥이는?',['1란성 쌍둥이','2란성 쌍둥이','이란성 형제','잡종'],'1란성 쌍둥이는 유전자 구성이 서로 같아.'],
+['쌍둥이 연구로 알 수 있는 것은?',['유전과 환경이 특정 형질에 미치는 영향','염색체의 수','DNA 구조','완두의 우열 관계'],'서로 다른 환경에서 자란 1란성 쌍둥이를 비교해.'],
+['다른 지역에서 자란 1란성 쌍둥이의 특정 형질에 차이가 있다면?',['환경의 영향을 더 크게 받은 것','유전의 영향을 더 크게 받은 것','유전자가 다른 것','돌연변이가 생긴 것'],'유전자 구성이 같으니 차이는 환경 때문이야.'],
+['염색체의 수와 모양을 분석하면 알 수 있는 것은?',['염색체 이상으로 생기는 유전병','혈당량','체온','반사 경로'],'DNA를 분석하면 특정 형질과 관련된 유전자 정보를 얻을 수 있어.'],
+['부모와 다른 형질의 자녀가 태어났다면, 부모의 형질은?',['우성','열성','알 수 없다','중간'],'부모에게 나타난 형질이 우성, 자녀에게 나타난 형질이 열성이야.'],
+['열성 형질인 부모 사이에서 태어나는 자녀는?',['열성 형질인 자녀만 태어난다','우성 형질인 자녀만 태어난다','우성:열성=3:1','우성:열성=1:1'],'열성 부모는 둘 다 aa라서 a만 물려줘.'],
+['혀 말기 우성 유전자를 T라고 할 때, 혀 말기가 불가능한 사람의 유전자형은?',['tt','TT','Tt','TT 또는 Tt'],'열성 형질이면 유전자형을 바로 알 수 있어.'],
+['유전자 모의 활동에서 동전을 던져 나온 면이 뜻하는 것은?',['생식세포에 들어가는 대립유전자','자손의 표현형','염색체 수','우열 관계'],'두 동전의 면을 짝지으면 수정되어 자손의 유전자형이 결정돼.']]};
+Q.gen.boss=[
+['노란색 순종(YY)×초록색 순종(yy)의 자손 1대를 자가 수분한 자손 2대에서 유전자형이 Yy인 완두가 나올 확률은?',['50%','25%','75%','100%'],'YY:Yy:yy = 1:2:1 → Yy는 2/4 = 50%.'],
+['RrYy(둥글고 노란색)와 rryy(주름지고 초록색)를 교배했을 때 자손 1대의 표현형 비(둥노:둥초:주노:주초)는?',['1:1:1:1','9:3:3:1','3:1','1:0:0:1'],'RrYy는 RY, Ry, rY, ry를, rryy는 ry만 만들어서 1:1:1:1이 돼.'],
+['RrYy를 자가 수분해 얻은 완두 1600개 중 주름지고 노란색인 완두는 이론상 몇 개?',['300개','900개','100개','400개'],'9:3:3:1에서 주름지고 노란색은 3/16 → 1600 × 3/16 = 300개.'],
+['A가 없는 부모 사이에서 A가 있는 자녀가 태어났다. 열성 형질은?',['A 있음','A 없음','알 수 없다','둘 다 우성'],'부모와 다른 형질이 자녀에게 나타났으니 A 있음이 열성이야.'],
+['정상인 부모 사이에서 유전병인 딸 (가)가 태어났다. 옳은 설명은?',['(가)는 정상 유전자가 없다','유전병은 우성 형질이다','(가)의 부모는 모두 유전병 유전자가 없다','(가)의 유전자형은 Aa이다'],'정상 부모에게서 유전병 자녀 → 유전병은 열성(aa). 부모는 모두 Aa야.'],
+['둥근 순종(RR)×주름진 순종(rr)의 교배 실험에 대한 설명으로 옳지 않은 것은?',['자손 2대에서 둥근 완두의 유전자형은 모두 같다','둥근 것이 우성이다','자손 1대의 유전자형은 Rr이다','자손 1대는 2종류의 생식세포를 만든다'],'자손 2대의 둥근 완두는 RR과 Rr 두 가지야.'],
+['RRYY×rryy의 자손 1대 (가)가 만드는 생식세포의 유전자형은?',['RY, Ry, rY, ry가 1:1:1:1','RY만','RY와 ry가 1:1','Rr과 Yy'],'(가)는 RrYy, 둥글고 노란색. 독립의 법칙에 따라 4종류가 같은 비율로 만들어져.'],
+['주근깨 있는 아버지와 주근깨 없는 어머니(부모가 모두 주근깨 있음) 사이에서 주근깨 있는 딸 슬비가 태어났다. 슬비의 유전자형은?',['Aa','AA','aa','AA 또는 Aa'],'주근깨 있는 부모에게서 없는 딸이 나왔으니 없음이 열성(aa). 어머니가 aa라서 슬비는 a를 받아 Aa야.'],
+['분꽃 빨간색(RR)×흰색(WW) → 자손 1대 분홍색(RW). 자손 2대의 빨간색:분홍색:흰색 비는?',['1:2:1','3:1','9:3:3:1','1:1'],'두 유전자 사이의 우열 관계가 뚜렷하지 않아 분홍색이 나타나. 그래도 분리의 법칙은 따라서 1:2:1이야.'],
+['혀 말기가 가능한 Tt 아버지와 Tt 어머니 사이에서 혀 말기가 불가능한 자녀가 태어날 확률은?',['25%','50%','75%','0%'],'TT:Tt:tt = 1:2:1 → tt는 1/4 = 25%.'],
+['젖은 귀지 부모(㉠, ㉡) 사이에서 마른 귀지 딸 ㉢이 태어났다. ㉢과 젖은 귀지 ㉣ 사이에서 마른 귀지 아들이 태어났다면 ㉣의 유전자형은?',['Aa','AA','aa','AA 또는 Aa'],'마른 귀지가 열성(aa). 아들이 aa이려면 ㉣도 a를 줘야 하니 Aa야.'],
+['혀 말기 가계도에서 아버지 Tt, 어머니 Tt, 동생 tt이고 나는 혀 말기가 가능하다. 나의 유전자형은?',['TT 또는 Tt','TT','Tt','tt'],'우성 형질이면 TT인지 Tt인지 가계도만으로는 확정할 수 없어.']];
+Q.star={name:'Ⅶ. 별과 우주',css:'#6fa8ff',color:0x6fa8ff,obj:'planet',list:[
+['떨어져 있는 두 관측 지점과 물체가 이루는 각은?',['시차','연주 시차','등급','파섹'],'두 지점에서 물체를 바라보면 물체 뒤의 배경이 달라 보여.'],
+['관측 지점과 물체 사이의 거리가 멀수록 시차는?',['작아진다','커진다','변하지 않는다','0이 된다'],'가까울수록 시차가 커지고, 멀수록 작아져.'],
+['별의 시차를 측정할 때 이용하는 두 지점은?',['지구 공전 궤도에서 가장 멀리 떨어진 두 지점','지구상의 서로 다른 두 도시','지구와 달','태양과 지구'],'별은 너무 멀어서 지구상의 두 지점으로는 시차를 측정하기 어려워.'],
+['지구에서 별을 6개월 간격으로 관측해 측정한 시차의 1/2을 무엇이라고 할까?',['연주 시차','시차','절대 등급','은하수'],'그림 7-1에서 별 X의 연주 시차는 ∠AXB의 1/2이야.'],
+['6개월 동안 별의 위치가 다르게 보이는 까닭은?',['지구가 태양 주위를 공전하기 때문','별이 움직이기 때문','지구가 자전하기 때문','태양이 움직이기 때문'],'관측하는 지구의 위치가 바뀌어서 별의 위치가 달라 보여.'],
+['지구에서 멀리 있는 별일수록 연주 시차는?',['작아진다','커진다','같다','음수가 된다'],'별 Y가 별 X보다 멀어서 연주 시차가 더 작아.'],
+['연주 시차의 단위는?',['″(초)','°(도)','pc(파섹)','광년'],'1°(도) = 60′(분) = 3600″(초).'],
+['연주 시차가 1″인 별까지의 거리는?',['1 pc','10 pc','1광년','3.26 pc'],'1 pc(파섹)은 약 3.26광년이야.'],
+['1 pc은 약 몇 광년일까?',['약 3.26광년','약 1광년','약 10광년','약 100광년'],'1광년은 빛이 1년 동안 이동하는 거리야.'],
+['연주 시차로 거리를 측정할 수 있는 별은 대체로?',['100 pc보다 가까이 있는 별','100 pc보다 멀리 있는 별','모든 별','10 pc에 있는 별만'],'너무 먼 별은 연주 시차가 너무 작아서 측정하기 어려워.'],
+['손전등 실험에서 같은 손전등을 더 먼 곳에 놓고 밝기를 재면?',['더 어둡게 측정된다','더 밝게 측정된다','같게 측정된다','측정할 수 없다'],'실제 밝기를 비교하려면 같은 거리에 놓아야 해.'],
+['우리 눈에 보이는 별의 밝기를 등급으로 나타낸 것은?',['겉보기 등급','절대 등급','연주 시차','표면 온도'],'겉보기 등급으로는 별의 실제 밝기를 비교할 수 없어.'],
+['별이 10 pc 거리에 있다고 가정하여 나타낸 밝기 등급은?',['절대 등급','겉보기 등급','연주 등급','상대 등급'],'절대 등급으로 별의 실제 밝기를 비교해.'],
+['별의 등급에 대한 설명으로 옳은 것은?',['등급의 숫자가 작을수록 밝은 별이다','등급의 숫자가 클수록 밝은 별이다','등급은 음수가 될 수 없다','등급은 거리와 관계없다'],'−1.5등급은 1등급보다 밝아.'],
+['1등급인 별은 6등급인 별보다 몇 배 밝을까?',['100배','5배','2.5배','10배'],'1등급 차이는 약 2.5배의 밝기 차이야.'],
+['별의 실제 밝기를 비교할 때 이용하는 것은?',['절대 등급','겉보기 등급','별의 색','연주 시차'],'겉보기 등급은 거리의 영향을 받아.'],
+['겉보기 등급과 절대 등급이 같은 별까지의 거리는?',['10 pc','1 pc','100 pc','3.26 pc'],'절대 등급의 기준 거리가 10 pc이기 때문이야.'],
+['시리우스처럼 겉보기 등급이 절대 등급보다 작은 별은?',['10 pc보다 가까이 있다','10 pc보다 멀리 있다','10 pc에 있다','알 수 없다'],'시리우스: 겉보기 −1.5등급, 절대 1.4등급.'],
+['베텔게우스처럼 겉보기 등급이 절대 등급보다 큰 별은?',['10 pc보다 멀리 있다','10 pc보다 가까이 있다','10 pc에 있다','태양보다 가깝다'],'베텔게우스: 겉보기 0.4등급, 절대 −5.6등급.'],
+['(겉보기 등급 − 절대 등급) 값이 클수록?',['멀리 있는 별이다','가까이 있는 별이다','뜨거운 별이다','어두운 별이다'],'그림 7-2: 이 값이 클수록 멀리 있는 별이야.'],
+['전열기의 니크롬선 색이 달라지는 까닭은?',['빛을 내는 물체는 온도에 따라 색이 변하기 때문','전기가 약해져서','니크롬선이 녹아서','빛이 반사되어서'],'별도 마찬가지로 표면 온도에 따라 색이 달라.'],
+['별의 색이 다른 까닭은?',['표면 온도가 다르기 때문','거리가 다르기 때문','크기가 다르기 때문','나이가 다르기 때문'],'표면 온도가 낮을수록 붉은색, 높을수록 파란색을 띠어.'],
+['다음 중 표면 온도가 가장 높은 별의 색은?',['청색','적색','황색','주황색'],'적색 → 주황색 → 황색 → 황백색 → 백색 → 청백색 → 청색 순으로 높아져.'],
+['다음 중 표면 온도가 가장 낮은 별의 색은?',['적색','백색','청백색','황백색'],'붉은색을 띨수록 표면 온도가 낮아.'],
+['오리온자리에서 붉은색을 띠는 별은?',['베텔게우스','리겔','태양','시리우스'],'리겔은 청백색이라 베텔게우스보다 표면 온도가 높아.'],
+['태양은 무슨 색을 띨까?',['노란색','청백색','붉은색','청색'],'태양의 색을 바탕으로 표면 온도를 알 수 있어.'],
+['주황색 별과 백색 별 중 표면 온도가 높은 별은?',['백색 별','주황색 별','같다','알 수 없다'],'백색이 주황색보다 파란 쪽에 가까워서 표면 온도가 높아.'],
+['옛날 대장간에서 쇠를 두드려야 할 적절한 온도를 알아낸 방법은?',['가열한 쇠의 색을 보고','쇠의 무게를 재서','쇠의 소리를 듣고','쇠의 크기를 재서'],'빛을 내는 물체는 온도에 따라 색이 변하기 때문이야.'],
+['태양계가 포함된 은하는?',['우리은하','안드로메다은하','은하수','성운'],'우리은하에는 약 2천억 개의 별이 있어.'],
+['우리은하를 위에서 보면 어떤 모양일까?',['막대 나선 모양','원반 모양','공 모양','불규칙한 모양'],'중심부는 막대 모양이고, 막대 끝에 소용돌이치는 나선팔이 있어.'],
+['우리은하를 옆에서 보면 어떤 모양일까?',['중심부가 약간 볼록한 원반 모양','막대 나선 모양','공 모양','고리 모양'],'위에서 보면 막대 나선, 옆에서 보면 원반 모양이야.'],
+['우리은하의 지름은 약 얼마일까?',['30000 pc','8500 pc','100 pc','300000 pc'],'태양계는 은하 중심에서 약 8500 pc 떨어진 나선팔에 있어.'],
+['태양계는 우리은하의 어디에 있을까?',['중심에서 약 8500 pc 떨어진 나선팔','우리은하의 중심','우리은하의 바깥','막대의 한가운데'],'태양계는 중심부에서 벗어나 은하면 안에 있어.'],
+['지구에서 본 우리은하의 일부로, 희뿌연 띠 모양으로 보이는 것은?',['은하수','성운','성단','외부 은하'],'은하 중심부 방향을 보면 별이 많아서 은하수가 넓고 밝게 보여.'],
+['많은 별이 모여 집단을 이루는 천체는?',['성단','성운','성간 물질','은하수'],'성단, 성운, 성간 물질로 이루어진 거대한 천체가 은하야.'],
+['별과 별 사이에 퍼져 있는 가스와 티끌 등은?',['성간 물질','성단','반사 성운','구상 성단'],'성간 물질이 모여 구름처럼 보이는 천체가 성운이야.'],
+['성간 물질이 모여 구름처럼 보이는 천체는?',['성운','성단','은하','항성'],'성운은 밝은 성운과 어두운 성운으로 구분해.'],
+['수십 개~수만 개의 별들이 엉성하게 흩어져 있는 성단은?',['산개 성단','구상 성단','방출 성운','암흑 성운'],'예: 좀생이 성단.'],
+['수만 개~수십만 개의 별들이 빽빽하게 공 모양으로 모여 있는 성단은?',['구상 성단','산개 성단','반사 성운','방출 성운'],'예: M22, M80.'],
+['성간 물질이 주변의 별빛을 흡수해 가열되면서 스스로 빛을 내는 성운은?',['방출 성운','반사 성운','암흑 성운','구상 성단'],'예: 오리온 대성운.'],
+['성간 물질이 주변의 별빛을 반사하여 밝게 보이는 성운은?',['반사 성운','방출 성운','암흑 성운','산개 성단'],'예: 마귀할멈 성운.'],
+['성간 물질이 뒤쪽에서 오는 별빛을 가로막아 어둡게 보이는 성운은?',['암흑 성운','반사 성운','방출 성운','구상 성단'],'예: 말머리성운.'],
+['풍선 실험에서 풍선을 크게 불면 붙임딱지 사이의 거리는?',['멀어진다','가까워진다','그대로다','사라진다'],'처음 거리가 멀수록 더 많이 멀어져.'],
+['풍선 실험에서 풍선 표면과 붙임딱지는 각각 무엇을 뜻할까?',['우주와 은하','은하와 별','태양과 행성','성운과 성단'],'풍선 표면이 늘어나듯 우주가 팽창하면서 은하들이 서로 멀어져.'],
+['멀리 떨어져 있는 은하일수록 서로 어떻게 멀어질까?',['더 빨리 멀어진다','더 천천히 멀어진다','멀어지지 않는다','가까워진다'],'붙임딱지 사이의 거리가 멀수록 거리 변화값이 커.'],
+['은하들이 서로 멀어지는 까닭은?',['우주가 팽창하고 있기 때문','은하가 회전하기 때문','중력이 사라지기 때문','별이 폭발하기 때문'],'팽창하는 우주에는 중심이 없어.'],
+['팽창하는 우주에 중심이 있을까?',['없다','있다, 우리은하가 중심이다','있다, 태양이 중심이다','있다, 지구가 중심이다'],'풍선 표면 어디에도 중심이 없는 것과 같아.'],
+['현재까지의 관측 결과에 따르면 우주는 약 언제 탄생했을까?',['약 138억 년 전','약 46억 년 전','약 1억 년 전','약 1조 년 전'],'우주의 시작이나 크기는 아직 정확하게 알려지지 않았어.']]};
+Q.star.boss=[
+['연주 시차가 0.5″인 별까지의 거리는?',['2 pc','0.5 pc','5 pc','1 pc'],'거리(pc) = 1 ÷ 연주 시차(″) = 1 ÷ 0.5 = 2 pc.'],
+['별 (가) 겉보기 1등급·절대 5등급, 별 (나) 겉보기 3등급·절대 −1등급이다. 더 멀리 있는 별과 그 이유는?',['(나) – 겉보기 등급 − 절대 등급 값이 더 크다','(가) – 겉보기 등급이 더 작다','(가) – 절대 등급이 더 크다','(나) – 겉보기 등급이 더 크다'],'(가): 1−5 = −4로 10 pc보다 가까움 / (나): 3−(−1) = 4로 10 pc보다 멂.'],
+['별의 연주 시차에 대한 설명으로 옳은 것은?',['1 pc은 연주 시차가 1″인 별까지의 거리이다','연주 시차와 별까지의 거리는 비례한다','연주 시차로는 100 pc보다 먼 별의 거리를 잰다','연주 시차는 지구의 자전 때문에 생긴다'],'연주 시차와 거리는 반비례하고, 대체로 100 pc 이내의 별에 쓰여.'],
+['노란색의 태양, 청백색의 리겔, 붉은색의 베텔게우스를 표면 온도가 높은 것부터 나열하면?',['리겔 > 태양 > 베텔게우스','태양 > 리겔 > 베텔게우스','베텔게우스 > 태양 > 리겔','리겔 > 베텔게우스 > 태양'],'파란색에 가까울수록 표면 온도가 높아.'],
+['어떤 별의 시차를 공전 궤도의 가장 먼 두 지점에서 잴 때, 지구와 목성에서 잰 시차를 비교하면?',['목성에서 잰 시차가 더 크다','지구에서 잰 시차가 더 크다','같다','목성에서는 잴 수 없다'],'목성의 공전 궤도가 더 커서 두 관측 지점 사이가 멀어지니 시차가 커져.'],
+['우리은하에 대한 설명으로 옳은 것은?',['우리은하에는 나선 모양의 팔이 있다','태양계는 우리은하의 중심에 있다','우리은하의 지름은 약 8500 pc이다','우리은하에는 약 2천 개의 별이 있다'],'태양계는 중심에서 약 8500 pc, 지름은 약 30000 pc, 별은 약 2천억 개.'],
+['우주에 대한 설명으로 옳은 것을 모두 고르면? (ㄱ. 수많은 은하가 있다 ㄴ. 우주는 팽창하고 있다 ㄷ. 은하 사이의 거리는 가까워진다 ㄹ. 우주의 중심에는 우리은하가 있다)',['ㄱ, ㄴ','ㄱ, ㄷ','ㄴ, ㄹ','ㄱ, ㄴ, ㄹ'],'은하 사이의 거리는 멀어지고, 팽창하는 우주에는 중심이 없어.'],
+['팽창하는 우주에서 시간을 거꾸로 되돌린다면 우주의 크기는?',['점점 작아진다','점점 커진다','변하지 않는다','두 배가 된다'],'우주가 계속 팽창해 지금의 우주가 되었으니, 거꾸로 가면 작아져.'],
+['은하수 사진에서 일부분이 어둡게 보이는 까닭은?',['성간 물질이 뒤쪽의 별빛을 가로막기 때문','그 부분에 별이 없기 때문','빛을 반사하기 때문','별의 표면 온도가 낮기 때문'],'암흑 성운처럼 성간 물질이 별빛을 가려서야.'],
+['태양계가 우리은하의 중심부에 있다면 은하수는 어떻게 보일까?',['하늘 전체에 고르게 퍼져 보인다','지금보다 좁은 띠로 보인다','보이지 않는다','한 점으로 보인다'],'중심에서 보면 사방에 별이 많아서 띠가 아니라 하늘 전체에 퍼져 보여.'],
+['M80(빽빽한 공 모양 별 집단)과 말머리성운(뒤쪽 별빛을 가려 어둡게 보임)의 종류를 바르게 짝지은 것은?',['구상 성단 – 암흑 성운','산개 성단 – 방출 성운','구상 성단 – 반사 성운','산개 성단 – 암흑 성운'],'빽빽한 공 모양 = 구상 성단, 별빛을 가림 = 암흑 성운.'],
+['풍선 실험에서 처음 거리가 2 cm인 붙임딱지 사이가 4 cm, 처음 거리가 5 cm인 사이는 10 cm가 되었다. 알 수 있는 것은?',['처음 거리가 멀수록 거리 변화값이 크다','처음 거리가 가까울수록 더 많이 멀어진다','모든 붙임딱지 사이가 똑같이 멀어진다','풍선의 중심에서만 멀어진다'],'변화값 2 cm vs 5 cm. 멀리 있는 은하일수록 더 빨리 멀어지는 것과 같아.']];
+Q.bio.boss=[
+['고무망치로 무릎뼈 아래를 쳤을 때 다리가 들리는 반응의 경로는?',['자극 수용 → 감각 신경 → 척수 → 운동 신경 → 반응 기관','자극 수용 → 감각 신경 → 척수 → 대뇌 → 척수 → 운동 신경 → 반응 기관','자극 수용 → 운동 신경 → 척수 → 감각 신경 → 반응 기관','자극 수용 → 감각 신경 → 대뇌 → 운동 신경 → 반응 기관'],'무조건 반사는 대뇌를 거치지 않고 척수에서 바로 운동 신경으로 신호를 보내.'],
+['고무망치가 닿는 느낌이 들었을 때 팔을 드는 반응의 경로는?',['자극 수용 → 감각 신경 → 척수 → 대뇌 → 척수 → 운동 신경 → 반응 기관','자극 수용 → 감각 신경 → 척수 → 운동 신경 → 반응 기관','자극 수용 → 대뇌 → 감각 신경 → 운동 신경 → 반응 기관','자극 수용 → 감각 신경 → 소뇌 → 운동 신경 → 반응 기관'],'의식적 반응은 척수를 거쳐 대뇌에서 판단한 뒤 다시 척수 → 운동 신경으로 가.'],
+['추울 때의 체온 조절 과정으로 옳은 것은?',['티록신 분비량이 늘어 세포 호흡이 촉진된다','세포 호흡이 억제된다','근육이 떨려 열이 적게 발생한다','피부 혈관이 확장되어 열 방출이 늘어난다'],'추울 때: 피부 혈관 수축(열 방출↓), 근육 떨림(열 발생↑), 티록신↑ → 세포 호흡 촉진(열 발생↑).'],
+['식사 후 혈당량이 올랐다가(㉠) 운동을 시작하자 정상보다 낮아졌다가 회복(㉡)되었다. ㉠, ㉡에서 작용하는 호르몬은?',['㉠ 인슐린, ㉡ 글루카곤','㉠ 글루카곤, ㉡ 인슐린','㉠ 티록신, ㉡ 인슐린','㉠ 인슐린, ㉡ 티록신'],'혈당↑ → 인슐린이 낮춤 / 운동으로 혈당↓ → 글루카곤이 높임.'],
+['식사 후 혈당량이 증가했을 때 일어나는 과정으로 옳은 것은?',['인슐린이 분비되어 간에서 포도당을 글리코젠으로 합성해 저장한다','글루카곤이 분비되어 간에서 글리코젠을 포도당으로 분해한다','인슐린이 분비되어 간에서 글리코젠을 포도당으로 분해한다','티록신이 분비되어 혈당량이 증가한다'],'인슐린은 간과 세포에 작용 → 간은 글리코젠 저장, 세포는 포도당 흡수 → 혈당량 감소.'],
+['뇌의 구조와 기능을 옳게 연결한 것은?',['소뇌 – 몸의 균형을 유지한다','대뇌 – 심장 박동을 조절한다','간뇌 – 기억, 감정 등 정신 활동을 담당한다','연수 – 눈의 움직임을 조절한다'],'심장 박동은 연수, 정신 활동은 대뇌, 눈의 움직임은 중간뇌야.'],
+['사고로 대뇌가 손상되어 의식이 없지만 생명은 유지되는 환자가 있다. 제 기능을 하는 뇌 부위와 그 이유로 옳은 것은?',['간뇌와 연수 – 체온 유지, 심장 박동·호흡 조절','대뇌와 소뇌 – 정신 활동과 균형 유지','중간뇌와 소뇌 – 눈의 움직임과 균형 유지','척수와 대뇌 – 신호 전달과 판단'],'간뇌는 몸속 상태를 일정하게, 연수는 심장 박동과 호흡을 조절해 생명을 유지해.'],
+['운동 뉴런에 이상이 생겼을 때 나타날 수 있는 현상은?',['자극은 느끼지만 근육을 움직이는 반응이 일어나지 않는다','자극을 전혀 느끼지 못한다','판단을 할 수 없다','체온 조절만 안 된다'],'운동 뉴런은 연합 뉴런의 신호를 근육(반응 기관)으로 전달하는 역할이야.'],
+['기록 경기에서 출발 신호 후 0.1초 안에 움직이면 부정 출발로 보는 까닭은?',['소리를 듣고 대뇌가 판단해 움직이는 의식적 반응은 그보다 빠를 수 없어서','무조건 반사는 0.1초보다 느려서','척수가 소리를 판단해서','호르몬이 작용하는 시간이라서'],'출발 신호에 반응하는 건 대뇌를 거치는 의식적 반응이라 시간이 걸려. 그보다 빠르면 미리 움직인 거야.'],
+['신경계에 대한 설명으로 옳은 것은?',['중추 신경계는 뇌와 척수로 이루어져 있다','연합 뉴런은 감각 신경과 운동 신경을 구성한다','심장 박동에 문제가 생기면 소뇌에 이상이 생긴 것이다','척추는 등뼈 속에 들어 있는 신경이다'],'연합 뉴런은 중추 신경계를 구성하고, 심장 박동은 연수, 척추는 등뼈야.'],
+['감각 기관 – (가) – (나) – (다) – 반응 기관 순으로 뉴런이 연결되어 있다. (가)~(다)의 이름은?',['감각 뉴런 – 연합 뉴런 – 운동 뉴런','연합 뉴런 – 감각 뉴런 – 운동 뉴런','운동 뉴런 – 연합 뉴런 – 감각 뉴런','감각 뉴런 – 운동 뉴런 – 연합 뉴런'],'자극은 감각 뉴런 → 연합 뉴런 → 운동 뉴런 방향으로 전달돼.']];
+
+const $=id=>document.getElementById(id);
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- 3D ---------- */
+const R=new THREE.WebGLRenderer({canvas:$('c'),antialias:true});
+R.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x060a17);
+scene.fog=new THREE.FogExp2(0x060a17,.02);
+const cam=new THREE.PerspectiveCamera(45,1,.1,300);cam.position.set(0,0,12);
+scene.add(new THREE.AmbientLight(0x6a7bb0,.65));
+const key=new THREE.DirectionalLight(0xffffff,1.1);key.position.set(4,6,8);scene.add(key);
+const rim=new THREE.PointLight(0x6fa8ff,2.2,40);rim.position.set(-7,-3,-3);scene.add(rim);
+const tint=new THREE.PointLight(0xffb547,1.8,30);tint.position.set(6,-2,6);scene.add(tint);
+
+function makeGlow(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.25,'rgba(255,255,255,.55)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)}
+const GT=makeGlow();
+const glow=(c,s,o=1)=>{const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:GT,color:c,transparent:true,opacity:o,depthWrite:false,blending:THREE.AdditiveBlending}));sp.scale.setScalar(s);return sp};
+const M=(c,e=0,o={})=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.32,metalness:.18,emissive:e},o));
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+function bond(a,b,r,mat){const d=b.clone().sub(a);const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,d.length(),14),mat);m.position.copy(a).add(b).multiplyScalar(.5);m.quaternion.setFromUnitVectors(V(0,1,0),d.normalize());return m}
+
+// stars
+{const N=2000,p=new Float32Array(N*3);for(let i=0;i<N;i++){const r=40+Math.random()*80,t=Math.random()*6.283,f=Math.acos(2*Math.random()-1);p[i*3]=r*Math.sin(f)*Math.cos(t);p[i*3+1]=r*Math.sin(f)*Math.sin(t);p[i*3+2]=r*Math.cos(f)}
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(p,3));
+ var stars=new THREE.Points(g,new THREE.PointsMaterial({map:GT,color:0xcfd8ff,size:.7,transparent:true,depthWrite:false,fog:false,blending:THREE.AdditiveBlending}));scene.add(stars)}
+
+const stage=new THREE.Group();scene.add(stage);
+
+function atom(){const g=new THREE.Group(),sg=new THREE.SphereGeometry(.36,28,18),pm=M(0xff5d6c,0x3a0010),nm=M(0x7fb6ff,0x001a3a);
+ for(let i=0;i<13;i++){const m=new THREE.Mesh(sg,i%2?pm:nm);const v=V(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize().multiplyScalar(Math.random()*.5);m.position.copy(v);g.add(m)}
+ g.add(glow(0xffb547,3.4,.45));
+ const em=new THREE.MeshBasicMaterial({color:0xfff1c9}),eg=new THREE.SphereGeometry(.16,16,12),es=[];
+ [[1.25,0,0],[1.25,0,1.05],[1.25,0,2.1]].forEach((r,k)=>{const pv=new THREE.Group();pv.rotation.set(...r);
+  pv.add(new THREE.Mesh(new THREE.TorusGeometry(2.7,.022,8,160),new THREE.MeshBasicMaterial({color:0xffb547,transparent:true,opacity:.5})));
+  const e=new THREE.Mesh(eg,em);e.add(glow(0xffc76a,1.1,.9));pv.add(e);g.add(pv);es.push({e,a:k*2.1,s:1.7+k*.45})});
+ g.userData.tick=(dt)=>{for(const o of es){o.a+=dt*o.s;o.e.position.set(Math.cos(o.a)*2.7,Math.sin(o.a)*2.7,0)}};return g}
+
+function mol(){const g=new THREE.Group(),inner=new THREE.Group();g.add(inner);
+ const O=V(0,.45,0),a=52.25*Math.PI/180,d=1.95,H1=V(Math.sin(a)*d,.45-Math.cos(a)*d,0),H2=V(-Math.sin(a)*d,.45-Math.cos(a)*d,0);
+ const o=new THREE.Mesh(new THREE.SphereGeometry(1.05,48,32),M(0xff4d6d,0x2a0010,{roughness:.22}));o.position.copy(O);inner.add(o);
+ const hm=M(0xf2f4ff,0x111522,{roughness:.25});[H1,H2].forEach(h=>{const m=new THREE.Mesh(new THREE.SphereGeometry(.62,40,28),hm);m.position.copy(h);inner.add(m);inner.add(bond(O,h,.17,M(0xd8d2e6,0)))});
+ inner.add(glow(0xff6b8b,4.5,.3));
+ const shell=new THREE.Group();shell.add(new THREE.Mesh(new THREE.IcosahedronGeometry(2.9,1),new THREE.MeshBasicMaterial({color:0xff6b8b,wireframe:true,transparent:true,opacity:.14})));
+ for(let i=0;i<36;i++){const s=glow(0xff9fb3,.35,.9);s.position.copy(V(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize().multiplyScalar(2.9));shell.add(s)}
+ g.add(shell);g.userData.tick=(dt)=>{shell.rotation.x+=dt*.25;shell.rotation.z+=dt*.12};return g}
+
+function dna(){const g=new THREE.Group(),inner=new THREE.Group();inner.rotation.z=.38;g.add(inner);
+ const sg=new THREE.SphereGeometry(.17,16,12),b1=M(0x4fe0b0,0x0a3a2a),b2=M(0x8ad0ff,0x0a2340),bb=M(0x9ff0d4,0x062a1e),
+  pairs=[[M(0xffb547,0x2a1800),M(0xff6b8b,0x2a0010)],[M(0x6fa8ff,0x001a3a),M(0xc79bff,0x1a0a33)]];
+ let p1p,p2p;
+ for(let i=0;i<28;i++){const y=(i-13.5)*.22,an=i*.48,p1=V(Math.cos(an)*1.25,y,Math.sin(an)*1.25),p2=V(-Math.cos(an)*1.25,y,-Math.sin(an)*1.25);
+  [[p1,b1],[p2,b2]].forEach(([p,m])=>{const s=new THREE.Mesh(sg,m);s.position.copy(p);inner.add(s)});
+  const mid=p1.clone().add(p2).multiplyScalar(.5),pr=pairs[i%2],sw=Math.random()<.5;
+  inner.add(bond(p1,mid,.065,pr[sw?1:0]));inner.add(bond(mid,p2,.065,pr[sw?0:1]));
+  if(p1p){inner.add(bond(p1p,p1,.05,bb));inner.add(bond(p2p,p2,.05,bb))}p1p=p1;p2p=p2}
+ inner.add(glow(0x4fe0b0,6,.18));return g}
+
+function planet(){const g=new THREE.Group(),inner=new THREE.Group();inner.rotation.set(.42,0,.18);g.add(inner);
+ const c=document.createElement('canvas');c.width=512;c.height=256;const x=c.getContext('2d'),cols=['#f0d9b0','#d9a86c','#e8c48e','#b98256','#f4e4c4','#c99868'];
+ let y=0;while(y<256){const h=4+Math.random()*22;x.fillStyle=cols[Math.random()*cols.length|0];x.fillRect(0,y,512,h);y+=h}
+ for(let i=0;i<1500;i++){x.fillStyle=`rgba(255,255,255,${Math.random()*.07})`;x.fillRect(Math.random()*512,Math.random()*256,20+Math.random()*70,1+Math.random()*2)}
+ x.fillStyle='rgba(180,90,60,.6)';x.beginPath();x.ellipse(330,160,26,11,0,0,7);x.fill();
+ const p=new THREE.Mesh(new THREE.SphereGeometry(1.65,64,48),new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(c),roughness:.85}));inner.add(p);
+ const rc=document.createElement('canvas');rc.width=rc.height=512;const rx=rc.getContext('2d');
+ for(let r=163;r<256;r+=1){rx.strokeStyle=`rgba(233,211,168,${(.15+Math.random()*.7)*(Math.sin((r-163)/93*Math.PI)*.6+.4)})`;rx.lineWidth=1.2;rx.beginPath();rx.arc(256,256,r,0,7);rx.stroke()}
+ const ring=new THREE.Mesh(new THREE.RingGeometry(2.1,3.3,160),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(rc),transparent:true,side:THREE.DoubleSide,depthWrite:false,color:0xdddddd}));
+ ring.rotation.x=-Math.PI/2;inner.add(ring);inner.add(glow(0x6fa8ff,5.2,.35));
+ const pv=new THREE.Group();pv.rotation.z=.3;const moon=new THREE.Mesh(new THREE.SphereGeometry(.3,24,16),M(0xb8c0d8,0,{roughness:.9}));moon.position.x=4.1;pv.add(moon);g.add(pv);
+ g.userData.tick=(dt)=>{pv.rotation.y+=dt*.7;p.rotation.y+=dt*.3};return g}
+
+const OBJ={atom:atom(),mol:mol(),dna:dna(),planet:planet()};
+for(const k in OBJ){OBJ[k].userData.s=0;OBJ[k].userData.t=0;OBJ[k].visible=false;stage.add(OBJ[k])}
+function setObj(k){for(const o in OBJ)OBJ[o].userData.t=o===k?1:0}
+
+// burst
+const BN=180,bp=new Float32Array(BN*3),bv=new Float32Array(BN*3),bgeo=new THREE.BufferGeometry();bgeo.setAttribute('position',new THREE.BufferAttribute(bp,3));
+const bmat=new THREE.PointsMaterial({map:GT,size:.45,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,opacity:0});
+stage.add(new THREE.Points(bgeo,bmat));let bLife=0;
+function doBurst(c){bmat.color.setHex(c);for(let i=0;i<BN;i++){const v=V(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize().multiplyScalar(4+Math.random()*8);bp[i*3]=bp[i*3+1]=bp[i*3+2]=0;bv[i*3]=v.x;bv[i*3+1]=v.y;bv[i*3+2]=v.z}bLife=1}
+
+const laser=new THREE.Group(),lm1=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}),lm2=lm1.clone();
+const lg=new THREE.CylinderGeometry(1,1,1,12,1,true);lg.translate(0,.5,0);
+{const a=new THREE.Mesh(lg,lm1),b=new THREE.Mesh(lg,lm2);a.scale.set(.05,1,.05);b.scale.set(.22,1,.22);laser.add(a,b)}scene.add(laser);let lLife=0;
+const flashS=glow(0xffffff,9,0);stage.add(flashS);
+function fireLaser(c){const from=V(stage.position.x*.3,-7,8),d=stage.position.clone().sub(from);laser.position.copy(from);laser.quaternion.setFromUnitVectors(V(0,1,0),d.clone().normalize());laser.scale.set(1,d.length(),1);lm2.color.setHex(c);lLife=1}
+const BOSS={dna:'완두 대마왕 멘델로스',atom:'대뇌 마왕 네우로',planet:'팽창 우주 군주 빅뱅',mol:'나노 분자 골렘'};
+function updateBoss(){$('hp').style.transform=`scaleX(${G.hp/G.maxHp})`;$('bossHp').textContent=`${G.hp} / ${G.maxHp}`}
+function resize(){const w=innerWidth,h=innerHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();
+ const vh=2*Math.tan(cam.fov*Math.PI/360)*cam.position.z,vw=vh*cam.aspect;let sc;
+ if(w/h>1.2){stage.position.set(-vw*.23,0,0);sc=Math.min(vw*.42,vh*.78)/7}else{stage.position.set(0,vh*.25,0);sc=Math.min(vw*.85,vh*.4)/7}
+ stage.scale.setScalar(sc)}
+addEventListener('resize',resize);resize();
+let px=0,py=0;addEventListener('pointermove',e=>{px=e.clientX/innerWidth*2-1;py=e.clientY/innerHeight*2-1});
+
+/* ---------- game ---------- */
+let state='menu',G=null,best=0,spin=0,shake=0,menuT=0,menuI=0,lunge=0,knock=0,fever=false,mon=null;
+try{best=+localStorage.getItem('sq-best')||0}catch(e){}
+$('best').textContent=best;
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+const WHITE=new THREE.Color(1,1,1);
+function setCat(k){const c=Q[k];document.documentElement.style.setProperty('--c',c.css);tint.color.setHex(c.color);setObj(c.obj)}
+function show(id){['menu','game','result','dex'].forEach(p=>{const el=$(p);el.hidden=p!==id;if(p===id){el.classList.remove('in');void el.offsetWidth;el.classList.add('in')}})}
+let AC;function beep(f,d,type='sine',v=.07,delay=0){try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();const t=AC.currentTime+delay,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+d)}catch(e){}}
+function pop(t,good){const p=$('pop');p.textContent=t;p.style.color=good?'var(--c)':'var(--bad)';p.classList.remove('go');void p.offsetWidth;p.classList.add('go')}
+function redFlash(){const f=$('flash');f.classList.add('on');requestAnimationFrame(()=>requestAnimationFrame(()=>f.classList.remove('on')))}
+
+/* monsters */
+const MON={bio:['뉴런 골렘','시냅스 스파크','호르몬 정령','반사 기사'],star:['운석 괴물','혜성 도깨비','성운 유령','파섹 파수꾼'],gen:['완두 슬라임','대립유전자 벌레','열성 도깨비','우성 쌍둥이'],phy:['볼트 골렘','줄(J) 스파크','와트 정령','발전기 기사'],earth:['운석 괴물','혜성 도깨비','성운 유령','소행성 파수꾼'],chem:['나노봇','IoT 드론','그래핀 큐브','하버 로봇']};
+const DK=new THREE.MeshBasicMaterial({color:0x07080f});
+const rdir=()=>V(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize();
+function eyeBall(r,iris){const e=new THREE.Group();e.add(new THREE.Mesh(new THREE.SphereGeometry(r,28,20),M(0xffffff,0x202020,{roughness:.15})));
+ const ir=new THREE.Mesh(new THREE.SphereGeometry(r*.55,24,16),M(iris,new THREE.Color(iris).multiplyScalar(.3).getHex(),{roughness:.2}));ir.position.z=r*.62;ir.scale.z=.5;e.add(ir);
+ const pu=new THREE.Mesh(new THREE.SphereGeometry(r*.3,16,12),DK);pu.position.z=r*.82;pu.scale.z=.4;e.add(pu);
+ const hl=new THREE.Mesh(new THREE.SphereGeometry(r*.12,10,8),new THREE.MeshBasicMaterial({color:0xffffff}));hl.position.set(r*.22,r*.25,r*.95);e.add(hl);return e}
+function glowEye(r,c){const e=new THREE.Group(),m=new THREE.Mesh(new THREE.SphereGeometry(r,20,14),new THREE.MeshBasicMaterial({color:c}));m.scale.z=.5;e.add(m);e.add(glow(c,r*5,.8));return e}
+function makeMon(k0){const c=Q[k0].color,k=k0==='gen'?'bio':k0==='bio'?'phy':k0==='star'?'earth':k0,g=new THREE.Group(),b=new THREE.Group();g.add(b);g.scale.setScalar(1.6);const eyes=[],ticks=[];let body;
+ if(k==='bio'){
+  body=new THREE.MeshPhysicalMaterial({color:c,transparent:true,opacity:.5,roughness:.08,clearcoat:1,emissive:new THREE.Color(c).multiplyScalar(.15)});
+  const mem=new THREE.Mesh(new THREE.SphereGeometry(1.35,48,32),body);b.add(mem);
+  const nuc=new THREE.Mesh(new THREE.SphereGeometry(.6,32,24),new THREE.MeshPhysicalMaterial({color:0x9a6cff,transparent:true,opacity:.55,roughness:.2,emissive:0x2a1060}));nuc.position.set(-.15,-.1,-.2);b.add(nuc);
+  const cm=M(0xffd166,0x4a3000);for(let i=0;i<4;i++){const x=new THREE.Group();[.6,-.6].forEach(a=>{const s=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.42,8),cm);s.rotation.z=a;x.add(s)});x.position.set(-.15+(Math.random()-.5)*.5,-.1+(Math.random()-.5)*.5,-.2+(Math.random()-.5)*.3);x.rotation.set(Math.random()*3,Math.random()*3,0);b.add(x)}
+  for(let i=0;i<6;i++){const o=new THREE.Mesh(new THREE.SphereGeometry(.1+Math.random()*.1,16,12),M(i%2?0x4fe0b0:0xff9fb3,0x103020));o.scale.set(1.7,.8,.8);o.position.copy(rdir().multiplyScalar(.7+Math.random()*.3));o.rotation.z=Math.random()*3;b.add(o)}
+  const cil=new THREE.Group(),cg=new THREE.CylinderGeometry(.012,.03,.35,5),cmat=M(c,0x0a3a2a);cg.translate(0,.17,0);
+  for(let i=0;i<80;i++){const d=rdir(),m=new THREE.Mesh(cg,cmat);m.position.copy(d).multiplyScalar(1.33);m.quaternion.setFromUnitVectors(V(0,1,0),d);cil.add(m)}b.add(cil);
+  const e=eyeBall(.5,0x7a3cff);e.position.set(0,.25,1.2);b.add(e);eyes.push(e);
+  const mo=new THREE.Mesh(new THREE.TorusGeometry(.28,.06,8,20,Math.PI),DK);mo.rotation.z=Math.PI;mo.position.set(0,-.4,1.27);b.add(mo);
+  [-.14,.14].forEach(x=>{const f=new THREE.Mesh(new THREE.ConeGeometry(.05,.16,8),M(0xffffff,0x202020));f.rotation.x=Math.PI;f.position.set(x,-.66,1.27);b.add(f)});
+  ticks.push((dt,t)=>{cil.rotation.y+=dt*.4;cil.children.forEach((m,i)=>m.scale.y=1+Math.sin(t*8+i)*.35);nuc.rotation.y+=dt;mem.scale.setScalar(1+Math.sin(t*2.5)*.03)});
+ }else if(k==='phy'){
+  body=M(0x5b6478,0,{metalness:.85,roughness:.28,flatShading:true});
+  const tor=new THREE.Mesh(new THREE.IcosahedronGeometry(1.15,0),body);tor.scale.set(1,.95,.85);b.add(tor);
+  const head=new THREE.Mesh(new THREE.OctahedronGeometry(.62,0),body);head.position.y=1.25;head.scale.set(1.2,.9,1);b.add(head);
+  const core=new THREE.Mesh(new THREE.SphereGeometry(.36,24,16),new THREE.MeshBasicMaterial({color:c}));core.position.set(0,0,.85);b.add(core);core.add(glow(c,2.6,.9));
+  [-.24,.24].forEach(x=>{const e=glowEye(.1,0xfff1c9);e.position.set(x,1.3,.52);b.add(e);eyes.push(e)});
+  const fm=M(c,new THREE.Color(c).multiplyScalar(.5).getHex(),{metalness:.4,roughness:.3,flatShading:true}),arms=[];
+  [-1,1].forEach(s=>{const sh=new THREE.Mesh(new THREE.SphereGeometry(.42,20,14),body);sh.position.set(s*1.25,.45,0);b.add(sh);
+   const arm=new THREE.Group();arm.position.set(s*1.4,.3,0);const up=new THREE.Mesh(new THREE.CylinderGeometry(.14,.18,.9,10),body);up.position.y=-.5;arm.add(up);
+   const fist=new THREE.Mesh(new THREE.DodecahedronGeometry(.36,0),fm);fist.position.y=-1.05;arm.add(fist);b.add(arm);arms.push(arm)});
+  [-.3,.3].forEach(x=>{const a=new THREE.Mesh(new THREE.ConeGeometry(.06,.55,8),body);a.position.set(x,1.85,0);a.rotation.z=x>0?-.35:.35;b.add(a);const tip=glow(c,.7,1);tip.position.set(x*1.55,2.12,0);b.add(tip)});
+  const rings=[0,1].map(i=>{const r=new THREE.Mesh(new THREE.TorusGeometry(1.75+i*.2,.025,8,100),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:.6}));r.rotation.x=1.2+i*.5;b.add(r);return r});
+  ticks.push((dt,t)=>{rings[0].rotation.z+=dt*1.5;rings[1].rotation.z-=dt*1.1;core.scale.setScalar(1+Math.sin(t*10)*.12);arms.forEach((a,i)=>a.rotation.x=Math.sin(t*3+i*Math.PI)*.4)});
+ }else if(k==='earth'){
+  body=M(0x3c3548,0,{roughness:.95,flatShading:true});
+  const geo=new THREE.IcosahedronGeometry(1.35,2),pa=geo.attributes.position,sd=Math.random()*10;
+  for(let i=0;i<pa.count;i++){const v=V(pa.getX(i),pa.getY(i),pa.getZ(i));v.multiplyScalar(1+.12*Math.sin(v.x*3+sd)*Math.cos(v.y*2.7+sd)+.07*Math.sin(v.z*5+sd*2));pa.setXYZ(i,v.x,v.y,v.z)}geo.computeVertexNormals();
+  const rock=new THREE.Mesh(geo,body);b.add(rock);const lava=new THREE.MeshBasicMaterial({color:c});
+  for(let i=0;i<12;i++){const d=rdir();if(d.z>.6)continue;const cr=new THREE.Mesh(new THREE.OctahedronGeometry(.13+Math.random()*.12,0),lava);cr.position.copy(d).multiplyScalar(1.38);cr.quaternion.setFromUnitVectors(V(0,1,0),d);cr.scale.y=2;rock.add(cr);const gl=glow(c,.9,.6);gl.position.copy(cr.position);rock.add(gl)}
+  [-.45,.45].forEach(x=>{const so=new THREE.Mesh(new THREE.SphereGeometry(.3,16,12),DK);so.position.set(x,.25,1.25);so.scale.z=.4;b.add(so);const e=glowEye(.15,0xffe08a);e.position.set(x,.25,1.36);b.add(e);eyes.push(e)});
+  const mo=new THREE.Mesh(new THREE.BoxGeometry(.8,.12,.1),lava);mo.position.set(0,-.5,1.32);b.add(mo);
+  const fl=[];for(let i=0;i<8;i++){const s=glow(i%2?0xffb547:c,1.6-i*.12,.7);s.position.set((Math.random()-.5)*.6,.6+i*.05,-1.2-i*.4);b.add(s);fl.push(s)}
+  const mini=[0,1,2].map(()=>{const m=new THREE.Mesh(new THREE.DodecahedronGeometry(.18,0),body);b.add(m);return m});
+  ticks.push((dt,t)=>{rock.rotation.y=Math.sin(t*.6)*.3;rock.rotation.x=Math.sin(t*.4)*.2;fl.forEach((s,i)=>{s.material.opacity=.4+Math.random()*.4;s.scale.setScalar((1.6-i*.12)*(.8+Math.random()*.4))});mini.forEach((m,i)=>{const a=t*1.2+i*2.1;m.position.set(Math.cos(a)*2,Math.sin(a*1.3)*.5,Math.sin(a)*2);m.rotation.x+=dt*2})});
+ }else{
+  body=M(0xe6e9f4,0,{metalness:.35,roughness:.22});
+  const head=new THREE.Mesh(new THREE.BoxGeometry(1.9,1.45,1.4),body);head.position.y=.35;b.add(head);
+  const visor=new THREE.Mesh(new THREE.BoxGeometry(1.55,.6,.08),new THREE.MeshStandardMaterial({color:0x0b0f1e,roughness:.1,metalness:.6}));visor.position.set(0,.45,.72);b.add(visor);
+  [-.38,.38].forEach(x=>{const e=glowEye(.16,c);e.position.set(x,.45,.78);e.children[0].scale.set(1.3,1,.4);b.add(e);eyes.push(e)});
+  const led=[];for(let i=0;i<5;i++){const l=new THREE.Mesh(new THREE.BoxGeometry(.12,.08,.05),new THREE.MeshBasicMaterial({color:c}));l.position.set(-.3+i*.15,-.05,.72);b.add(l);led.push(l)}
+  const ant=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.6,8),body);ant.position.y=1.35;b.add(ant);const ball=new THREE.Mesh(new THREE.SphereGeometry(.12,16,12),new THREE.MeshBasicMaterial({color:c}));ball.position.y=1.7;b.add(ball);ball.add(glow(c,1,.9));
+  [-1,1].forEach(s=>{const ear=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,.2,24),M(0x9aa3c7,0,{metalness:.7,roughness:.3}));ear.rotation.z=Math.PI/2;ear.position.set(s*1.02,.4,0);b.add(ear);const ring=new THREE.Mesh(new THREE.TorusGeometry(.2,.04,8,24),new THREE.MeshBasicMaterial({color:c}));ring.rotation.y=Math.PI/2;ring.position.set(s*1.13,.4,0);b.add(ring)});
+  const torso=new THREE.Mesh(new THREE.CylinderGeometry(.55,.4,.7,24),body);torso.position.y=-.75;b.add(torso);
+  const gm=M(0xffb547,0x221500,{metalness:.7,roughness:.3}),gear=new THREE.Group();gear.add(new THREE.Mesh(new THREE.TorusGeometry(.22,.07,8,20),gm));
+  for(let i=0;i<8;i++){const t=new THREE.Mesh(new THREE.BoxGeometry(.1,.1,.08),gm),a=i/8*Math.PI*2;t.position.set(Math.cos(a)*.3,Math.sin(a)*.3,0);t.rotation.z=a;gear.add(t)}gear.position.set(0,-.72,.55);b.add(gear);
+  const jet=new THREE.Mesh(new THREE.ConeGeometry(.3,.4,20),M(0x9aa3c7,0,{metalness:.7}));jet.position.y=-1.3;jet.rotation.x=Math.PI;b.add(jet);const fl=glow(c,1.4,.9);fl.position.y=-1.6;b.add(fl);
+  ticks.push((dt,t)=>{gear.rotation.z+=dt*3;led.forEach((l,i)=>l.visible=Math.sin(t*12+i)>-.3);fl.scale.setScalar(1.2+Math.random()*.5);ball.scale.setScalar(1+Math.sin(t*6)*.2)});
+ }
+ b.add(glow(c,5,.18));ticks.push((dt,t)=>{const bl=(t%3.2)<.12;eyes.forEach(e=>e.scale.y=bl?.1:1)});
+ return {g,b,body,base:body.emissive.clone(),tick:(dt,t)=>ticks.forEach(f=>f(dt,t))}}
+function killMon(){if(mon){stage.remove(mon.g);mon.g.traverse(o=>{if(o.geometry)o.geometry.dispose()});mon=null}}
+function spawnMon(k){killMon();const r=makeMon(k);r.g.position.set(0,0,-16);stage.add(r.g);mon=Object.assign(r,{ph:'enter',t:0,flash:0})}
+function updMon(dt){if(!mon)return;const m=mon,g=m.g;m.t+=dt;m.tick(dt,performance.now()/1000);
+ if(m.ph==='enter'){const k=Math.min(1,m.t/.9);g.position.z=-16*(1-k)*(1-k);g.position.y=Math.abs(Math.sin(m.t*9))*1.2*(1-k);if(k>=1){m.ph='idle';m.t=0}}
+ else if(m.ph==='idle'){g.position.y=Math.abs(Math.sin(m.t*3.2))*.5;const s=Math.sin(m.t*6.4)*.06;m.b.scale.set(1+s,1-s,1);g.rotation.y=Math.sin(m.t*1.3)*.5}
+ else if(m.ph==='atk'){const k=Math.min(1,m.t/.6);g.position.z=Math.sin(k*Math.PI)*6;g.rotation.x=-Math.sin(k*Math.PI)*.5;if(k>=1){m.ph='idle';m.t=0;g.rotation.x=0}}
+ else if(m.ph==='die'){const k=Math.min(1,m.t/.7);g.rotation.y+=dt*20;g.position.y=k*k*6;g.scale.setScalar(1.6*(1-k)+.001);if(k>=1){killMon();return}}
+ if(m.flash>0){m.flash=Math.max(0,m.flash-dt*2.5);m.body.emissive.copy(m.base).lerp(WHITE,m.flash)}}
+
+/* flow */
+function hud(){const L=Math.max(G.lives,0),boss=G.phase==='boss';$('lives').textContent='♥'.repeat(L)+'♡'.repeat(3-L);
+ $('n50').textContent=G.it50;$('ntime').textContent=G.itTime;$('i50').disabled=!G.it50||G.locked||G.u50;$('itime').disabled=!G.itTime||G.locked;
+ $('score').textContent=G.score;$('combo').textContent=G.combo;$('combo').classList.toggle('hot',G.combo>1);$('qn').textContent=G.qi;
+ $('hpbar').classList.toggle('prog',!boss);
+ if(boss){$('hp').style.transform=`scaleX(${G.hp/G.maxHp})`;$('bossName').textContent='BOSS · '+BOSS[Q[G.bk].obj];$('bossHp').textContent=`HP ${G.hp} / ${G.maxHp}`}
+ else{$('hp').style.transform=`scaleX(${Math.min(1,G.kills/G.need)})`;$('bossName').textContent=G.mode==='review'?'오답 복습 · '+(G.monName||''):`${G.monName||'몬스터'} 출현!`;$('bossHp').textContent=`${G.kills} / ${G.need}`}}
+function setFever(on){fever=on;document.body.classList.toggle('fever',on);$('comboLab').textContent=on?'FEVER ×2':'콤보';tint.intensity=on?3.4:1.8}
+$('i50').onclick=()=>{if(!G||G.locked||!G.it50||G.u50)return;G.it50--;G.u50=true;const b=[...$('opts').children];shuffle([0,1,2,3].filter(j=>j!==G.ans)).slice(0,2).forEach(j=>{b[j].classList.add('gone');b[j].disabled=true});beep(520,.15,'triangle');hud()};
+$('itime').onclick=()=>{if(!G||G.locked||!G.itTime)return;G.itTime--;G.time+=5;pop('+5초',true);beep(740,.15,'triangle');hud()};
+function start(mode){const keys=mode==='mix'||mode==='review'?KEYS:[mode],all=Object.values(ALL);
+ const pool=mode==='review'?Object.keys(P.wrongs).map(id=>ALL[id]).filter(Boolean):all.filter(e=>keys.includes(e.k)&&!e.boss);if(!pool.length)return;
+ const bp=all.filter(e=>keys.includes(e.k)&&e.boss);
+ G={mode,pool:shuffle(pool),bpool:shuffle(bp),bk:keys.length>1?KEYS[Math.random()*KEYS.length|0]:mode,phase:'mon',kills:0,need:mode==='review'?pool.length:5,qi:0,score:0,combo:0,max:0,right:0,time:15,maxT:15,locked:true,lives:3,it50:1,itTime:1,wrong:[],hp:1,maxHp:1,win:false,cards:0};
+ setFever(false);setObj('');$('hud').hidden=false;state='play';show('game');ask()}
+function ask(){const boss=G.phase==='boss',it=boss?G.bpool.shift():G.pool.shift();if(!it){end();return}G.cur=it;G.qi++;const c=Q[it.k];
+ document.documentElement.style.setProperty('--c',c.css);
+ if(boss)tint.color.setHex(G.hp<G.maxHp?0xff3040:Q[G.bk].color);else{tint.color.setHex(c.color);spawnMon(it.k);G.monName=MON[it.k][Math.random()*4|0]}
+ $('cat').textContent=(boss?'BOSS 문제 · ':'')+c.name;$('q').textContent=it.q[0];
+ const order=shuffle([0,1,2,3]);G.ans=order.indexOf(0);const box=$('opts');box.innerHTML='';
+ order.forEach((oi,n)=>{const b=document.createElement('button');b.className='opt';b.innerHTML=`<span class="k">${n+1}</span><span></span>`;b.lastChild.textContent=it.q[1][oi];b.onclick=()=>answer(n);box.appendChild(b)});
+ $('exp').hidden=true;G.maxT=G.time=boss?20:15;G.locked=false;G.u50=false;G.tk=0;hud();if(G.qi>1)show('game')}
+function answer(n){if(!G||G.locked)return;G.locked=true;const it=G.cur,good=n===G.ans,boss=G.phase==='boss',g0=G;
+ [...$('opts').children].forEach((b,j)=>{b.disabled=true;b.classList.add(j===G.ans?'ok':j===n?'bad':'dim')});
+ if(good){G.combo++;G.right++;G.max=Math.max(G.max,G.combo);const fast=G.maxT-G.time<3,fv=G.combo>=3&&!fever;if(fv)setFever(true);
+  const gain=Math.round((100+Math.min(G.time,15)*10)*(1+Math.min(G.combo-1,4)*.25)*(fever?2:1)*(boss?3:1));G.score+=gain;G.newCard=!P.cards[it.id];if(G.newCard){P.cards[it.id]=1;G.cards++}delete P.wrongs[it.id];saveP();
+  let ex='';if(G.combo%3===0){if(Math.random()<.5)G.it50++;else G.itTime++;ex='\n아이템 획득!'}if(G.newCard)ex+='\n지식 카드 획득!';
+  fireLaser(Q[it.k].color);beep(660,.12);beep(990,.2,'sine',.07,.09);if(G.combo>2)beep(1320,.2,'triangle',.05,.18);
+  if(boss){G.hp--;knock=1;flashS.material.opacity=1;spin=1.2;doBurst(0xff6060);if(G.hp)tint.color.setHex(0xff3040);
+   if(!G.hp){G.win=true;setTimeout(()=>{if(G!==g0)return;setObj('');doBurst(0xffffff);flashS.material.opacity=1;spin=3;shake=reduce?0:.6;pop('BOSS 처치!',true);beep(220,.6,'sawtooth',.06);beep(110,.9,'square',.05,.1);beep(880,.4,'triangle',.05,.3)},500)}
+   pop((fv?'FEVER!\n':'')+`보스에게 치명타!\n+${gain}`+ex,true)}
+  else{G.kills++;setTimeout(()=>{if(G!==g0)return;if(mon){mon.ph='die';mon.t=0;mon.flash=1}doBurst(Q[it.k].color);beep(300,.25,'square',.04)},160);
+   pop((fv?'FEVER!\n':fast?'번개 처치!\n':'몬스터 처치!\n')+`+${gain}`+(G.combo>1?` · ${G.combo}콤보`:'')+ex,true)}}
+ else{G.combo=0;G.lives--;setFever(false);G.wrong.push(it);P.wrongs[it.id]=1;G.newCard=false;saveP();const lv=$('lives');lv.classList.remove('hit');void lv.offsetWidth;lv.classList.add('hit');
+  if(boss)lunge=1;else if(mon){mon.ph='atk';mon.t=0}
+  setTimeout(()=>{shake=reduce?0:.7;redFlash();beep(180,.32,'sawtooth',.05)},280);
+  pop((n<0?'시간 초과!\n':'')+(boss?'보스의 반격!':'몬스터의 공격!'),false)}
+ hud();
+ const p=$('expT');p.innerHTML='';const b=document.createElement('b');b.textContent=good?(G.newCard?'정답! [새 지식 카드] ':'정답! '):`정답은 "${it.q[1][0]}" `;p.append(b,it.q[2]);
+ const toBoss=!boss&&G.kills>=G.need&&G.lives>0&&G.mode!=='review';
+ $('next').textContent=(G.lives<=0||G.win||(G.mode==='review'&&!G.pool.length))?'결과 보기':toBoss?'보스 소환!':'다음 몬스터';$('exp').hidden=false;$('next').focus({preventScroll:true})}
+function next(){if(!G||!G.locked||G.busy)return;if(G.lives<=0||G.win){end();return}if(G.phase==='mon'&&G.kills>=G.need){if(G.mode==='review'){end();return}bossIntro();return}ask()}
+function bossIntro(){const g0=G;G.busy=true;G.phase='boss';G.hp=G.maxHp=3;killMon();$('game').hidden=true;
+ $('warnName').textContent=BOSS[Q[G.bk].obj];$('warn').hidden=false;for(let i=0;i<5;i++)beep(i%2?440:330,.25,'sawtooth',.05,i*.3);
+ setTimeout(()=>{if(G!==g0)return;setCat(G.bk);flashS.material.opacity=1;spin=2;shake=reduce?0:.4;hud()},700);
+ setTimeout(()=>{if(G!==g0)return;$('warn').hidden=true;G.busy=false;show('game');ask()},2100)}
+function end(){state='result';$('hud').hidden=true;$('warn').hidden=true;killMon();setFever(false);const r=G.right;let rank,msg;
+ if(G.mode==='review'){rank='복습 완료';msg=`${r}/${G.qi} 정답! 맞힌 문제는 오답 목록에서 빠졌어. 남은 오답 ${Object.keys(P.wrongs).length}개.`}else if(G.win){const bonus=G.lives*500;G.score+=bonus;rank='보스 처치!';msg=`승리 보너스 +${bonus}점 (남은 목숨 ${G.lives}개). 어려운 보스 문제까지 뚫었어!`}
+ else if(G.phase==='boss'){rank='보스전 패배';msg=`보스 HP가 ${G.hp}칸 남았었어! 오답 노트로 보스 문제를 복습하고 다시 도전!`}
+ else{rank='실험 실패';msg=`몬스터 ${G.kills}마리 처치. 목숨을 모두 잃었어! 오답 노트를 보고 다시 도전!`}
+ const wb=$('wrongBox');wb.innerHTML='';if(G.wrong.length){const h=document.createElement('h3');h.textContent='오답 노트';wb.append(h);G.wrong.forEach(w=>{const d=document.createElement('div'),b=document.createElement('b');b.textContent=w.q[1][0];d.append(w.q[0]+' → ',b,document.createElement('br'),w.q[2]);wb.append(d)})}
+ const lv0=lvInfo().lv,xg=Math.round(G.score/5);P.xp+=xg;saveP();const L1=lvInfo();$('rXp').textContent=`+${xg} XP`+(G.cards?` · 새 지식 카드 ${G.cards}장`:'')+(L1.lv>lv0?` · 레벨 업! Lv.${L1.lv} ${L1.title}`:'');refreshMenu();
+ if(G.score>best){best=G.score;try{localStorage.setItem('sq-best',best)}catch(e){}}
+ $('rank').textContent=rank;$('rMsg').textContent=(G.score>=best&&G.score>0?'새 최고 기록! ':'')+msg;$('rRight').textContent=`${r}/${G.qi}`;$('rMax').textContent=G.max;$('rBest').textContent=best;$('best').textContent=best;
+ show('result');if(G.win){spin=2;doBurst(0xffffff)}
+ const el=$('final'),target=G.score,t0=performance.now();(function up(t){const k=Math.min(1,(t-t0)/900);el.textContent=Math.round(target*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(up)})(t0)}
+function home(){state='menu';G=null;killMon();$('hud').hidden=true;$('warn').hidden=true;setFever(false);show('menu');menuT=0;refreshMenu()}
+const P=(()=>{const p={xp:0,cards:{},wrongs:{}};try{Object.assign(p,JSON.parse(localStorage.getItem('sq-prof2')||'{}'))}catch(e){}return p})();
+function saveP(){try{localStorage.setItem('sq-prof2',JSON.stringify(P))}catch(e){}}
+const ALL={};KEYS.forEach(k=>{Q[k].list.forEach((q,i)=>ALL[k+i]={k,q,id:k+i});Q[k].boss.forEach((q,i)=>ALL[k+'b'+i]={k,q,id:k+'b'+i,boss:1})});
+const TITLES=['과학 새싹','실험 조수','탐구 연구원','과학 박사','천재 과학자','노벨상 후보','우주 대마법사'];
+function lvInfo(){let lv=1,need=500,x=P.xp;while(x>=need){x-=need;lv++;need=Math.round(need*1.25)}return{lv,x,need,title:TITLES[Math.min(TITLES.length-1,Math.floor((lv-1)/2))]}}
+function refreshMenu(){const L=lvInfo();$('lvT').textContent=`Lv.${L.lv} ${L.title}`;$('lvX').textContent=`${L.x} / ${L.need} XP`;$('lvBar').style.transform=`scaleX(${L.x/L.need})`;
+ $('dexN').textContent=`${Object.keys(P.cards).filter(id=>ALL[id]).length}/${Object.keys(ALL).length}`;const w=Object.keys(P.wrongs).filter(id=>ALL[id]).length;$('revN').textContent=w;$('revBtn').disabled=!w}
+function openDex(){const box=$('dexList');box.innerHTML='';KEYS.forEach(k=>{const items=Object.values(ALL).filter(e=>e.k===k),got=items.filter(e=>P.cards[e.id]).length,sec=document.createElement('div');sec.style.setProperty('--tc',Q[k].css);
+ const h=document.createElement('h3');h.innerHTML='<span></span><span></span>';h.firstChild.textContent=Q[k].name;h.lastChild.textContent=`${got}/${items.length}`;sec.append(h);
+ const gr=document.createElement('div');gr.className='dgrid';items.forEach(e=>{const d=document.createElement('div');if(P.cards[e.id]){d.className='card'+(e.boss?' boss':'');const s=document.createElement('span');s.textContent=(e.boss?'[BOSS] ':'')+e.q[0];const b=document.createElement('b');b.textContent=e.q[1][0];d.append(s,b,e.q[2])}else{d.className='card lock'+(e.boss?' boss':'');d.textContent=e.boss?'BOSS':'?'}gr.append(d)});sec.append(gr);box.append(sec)});
+ $('dexSub').textContent=`문제를 맞힐 때마다 지식 카드가 모여요. 금색 테두리는 보스 카드! 현재 ${$('dexN').textContent}장`;show('dex')}
+$('dexBtn').onclick=openDex;$('dexBack').onclick=()=>show('menu');$('revBtn').onclick=()=>start('review');
+refreshMenu();
+document.querySelectorAll('.tile').forEach(t=>{t.onclick=()=>start(t.dataset.mode);
+ const pv=()=>{if(t.dataset.mode!=='mix'){setCat(t.dataset.mode);menuT=-2}};t.addEventListener('pointerenter',pv);t.addEventListener('focus',pv)});
+$('next').onclick=next;$('quit').onclick=home;$('home').onclick=home;$('again').onclick=()=>start(G.mode);
+addEventListener('keydown',e=>{if(state!=='play'||!G||G.busy)return;if(!G.locked&&e.key>='1'&&e.key<='4')answer(+e.key-1);else if(G.locked&&(e.key==='Enter'||e.key===' ')){e.preventDefault();next()}});
+setCat('bio');
+let last=performance.now(),cx=0,cy=0;
+function loop(now){const dt=Math.min((now-last)/1000,.05);last=now;
+ if(state!=='play'){menuT+=dt;if(menuT>3.4){menuT=0;menuI=(menuI+1)%KEYS.length;setCat(KEYS[menuI])}}
+ else if(G&&!G.locked){G.time=Math.max(0,G.time-dt);$('tbar').style.transform=`scaleX(${Math.min(1,G.time/G.maxT)})`;const tn=$('tnum');tn.textContent=G.time.toFixed(1);tn.classList.toggle('low',G.time<5);if(G.time<5&&Math.ceil(G.time)!==G.tk){G.tk=Math.ceil(G.time);beep(880,.05,'square',.03)}if(G.time<=0)answer(-1)}
+ spin=Math.max(0,spin-dt*1.6);shake=Math.max(0,shake-dt*2);
+ for(const k in OBJ){const g=OBJ[k],u=g.userData;u.s+=(u.t-u.s)*Math.min(1,dt*5);g.visible=u.s>.01;
+  if(g.visible){const e=u.s<.99?u.s*u.s*(3-2*u.s):1;g.scale.setScalar(Math.max(e,.001)*(1+spin*.06));g.rotation.y+=dt*(.35+spin*5+(fever?1.2:0)+(G&&state==='play'&&G.hp<G.maxHp*.3?1.5:0));g.rotation.x=Math.sin(now/2400)*.15;g.position.z=Math.sin(lunge*Math.PI)*4-knock*1.5;if(u.tick)u.tick(dt)}}
+ if(bLife>0){bLife=Math.max(0,bLife-dt*.7);for(let i=0;i<BN*3;i++){bp[i]+=bv[i]*dt;bv[i]*=.965}bmat.opacity=bLife;bgeo.attributes.position.needsUpdate=true}
+ updMon(dt);if(lLife>0){lLife=Math.max(0,lLife-dt*3.5);lm1.opacity=lLife;lm2.opacity=lLife*.6}lunge=Math.max(0,lunge-dt*2);knock=Math.max(0,knock-dt*3);flashS.material.opacity=Math.max(0,flashS.material.opacity-dt*2.5);
+ stars.rotation.y+=dt*(fever?.07:.008);
+ cx+=(px*.7-cx)*dt*2;cy+=(-py*.5-cy)*dt*2;
+ cam.position.x=cx+(Math.random()-.5)*shake;cam.position.y=cy+(Math.random()-.5)*shake;cam.lookAt(0,0,0);
+ R.render(scene,cam);requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+</script>
+
+<!-- ===== 멀티플레이 연동 ===== -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+  // 클라이언트를 서버와 다른 곳(예: Netlify)에 올릴 때만 서버 주소를 적으세요.
+  // 서버가 이 페이지를 같이 제공하면 비워 두면 됩니다.
+  window.MP_SERVER = '';
+</script>
+<script src="mp.js"></script>
+</body>
+</html>
